@@ -8,6 +8,7 @@ import {
   addDays,
   cosine,
   dailyNumber,
+  isCanonicalDate,
   neuronKey,
   playerFor,
   requirePlayer,
@@ -31,7 +32,10 @@ export function dailyPoints(guesses: number) {
 export const current = query({
   args: { token: v.optional(v.string()), date: v.optional(v.string()) },
   handler: async (ctx, { token, date }) => {
-    const d = date ?? today();
+    const currentDate = today();
+    const d = date ?? currentDate;
+    // Unreleased and invalid dates disclose nothing, including whether a puzzle exists.
+    if (!isCanonicalDate(d) || d > currentDate) return null;
     const daily = await dailyFor(ctx, d);
     if (!daily) return null;
     const player = await playerFor(ctx, token);
