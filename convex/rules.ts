@@ -38,12 +38,6 @@ export function today(now = Date.now()) {
   return new Date(now).toISOString().slice(0, 10);
 }
 
-export function isCanonicalDate(date: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
-  const time = Date.parse(`${date}T00:00:00Z`);
-  return Number.isFinite(time) && today(time) === date;
-}
-
 export function addDays(date: string, days: number) {
   return today(Date.parse(date + "T00:00:00Z") + days * 86400000);
 }
