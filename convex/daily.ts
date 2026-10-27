@@ -75,7 +75,8 @@ async function resolve(ctx: MutationCtx, g: Doc<"guesses">, embedding: number[],
   await settle(ctx, g.playerId, daily);
 }
 
-// Finalize only when pending guesses cannot change the winning attempt or its heats.
+// Writes the player's result once they solve it or run out of guesses, but only after every guess up to the winning
+// one has been scored: an earlier pending guess could still be the win, and its heat belongs in the result.
 async function settle(ctx: MutationCtx, playerId: Doc<"players">["_id"], daily: Doc<"dailies">) {
   const existing = await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", playerId).eq("date", daily.date)).unique();
   if (existing) return;
@@ -87,30 +88,19 @@ async function settle(ctx: MutationCtx, playerId: Doc<"players">["_id"], daily: 
   const solved = hit >= 0;
   await ctx.db.insert("results", { playerId, date: daily.date, solved, guesses: used.length, heats: used.map((g) => g.heat ?? 0) });
   const p = (await ctx.db.get(playerId))!;
-  // The index orders this player's results by puzzle date, not completion time.
-  const results = await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", playerId)).collect();
-  let streak = 0;
-  let bestStreak = p.bestStreak; // Preserve historical achievements; reconciliation is separate.
-  let lastSolved: string | undefined;
-  let anchorStreak: number | undefined;
-  for (const r of results) {
-    if (!r.solved) {
-      streak = 0;
-      continue;
-    }
-    streak = lastSolved === addDays(r.date, -1) ? streak + 1 : 1;
-    bestStreak = Math.max(bestStreak, streak);
-    lastSolved = r.date;
-    if (r.date === p.lastSolved) anchorStreak = streak;
-  }
-  // Operator resets can remove history without resetting aggregates. Do not
-  // fabricate missing wins or erase a legacy streak; reconcile those separately.
-  const canRebuild = !p.lastSolved || (anchorStreak !== undefined && anchorStreak >= p.streak);
-  if (solved || canRebuild)
+  // A guess pending across UTC midnight can settle an older puzzle after a newer one; only the newest date moves the
+  // streak (a late older win still pays, it just doesn't extend the run).
+  const newest = !p.lastSolved || daily.date > p.lastSolved;
+  if (solved) {
+    const streak = p.lastSolved === addDays(daily.date, -1) ? p.streak + 1 : 1;
     await ctx.db.patch(playerId, {
-      ...(solved ? { points: p.points + dailyPoints(used.length), dailySolved: p.dailySolved + 1 } : {}),
-      ...(canRebuild ? { streak, bestStreak, ...(lastSolved ? { lastSolved } : {}) } : {}),
+      points: p.points + dailyPoints(used.length),
+      dailySolved: p.dailySolved + 1,
+      ...(newest ? { streak, bestStreak: Math.max(p.bestStreak, streak), lastSolved: daily.date } : {}),
     });
+  } else if (newest) {
+    await ctx.db.patch(playerId, { streak: 0 });
+  }
 }
 
 export const guess = mutation({
@@ -143,6 +133,17 @@ export async function resolvePending(ctx: MutationCtx, key: string, embedding: n
   for (const g of pending) {
     const daily = await dailyFor(ctx, g.date);
     if (daily) await resolve(ctx, g, embedding, daily);
+  }
+}
+
+// Called when the worker fails to measure a neuron: the guesses waiting on it are dropped, so the player gets them back
+// (and can retry, which queues a new job) instead of the puzzle never settling.
+export async function refundPending(ctx: MutationCtx, key: string) {
+  const pending = await ctx.db.query("guesses").withIndex("by_key_status", (q) => q.eq("key", key).eq("status", "pending")).collect();
+  for (const g of pending) {
+    await ctx.db.delete(g._id);
+    const daily = await dailyFor(ctx, g.date);
+    if (daily) await settle(ctx, g.playerId, daily);
   }
 }
 

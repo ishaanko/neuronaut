@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
-import { resolvePending } from "./daily";
+import { refundPending, resolvePending } from "./daily";
 import { bumpStats } from "./jobs";
 import { checkWorker, neuronKey, rarity, today } from "./lib";
 import { push } from "./schema";
@@ -52,6 +52,7 @@ export const fail = mutation({
     if (!job) return;
     await ctx.db.patch(id, { status: "failed", error: error.slice(0, 2000) });
     if (job.kind === "judge") await ctx.db.patch(job.args.entryId as Id<"entries">, { status: "failed" });
+    if (job.kind === "profile") await refundPending(ctx, neuronKey(job.args.layer as number, job.args.n as number));
   },
 });
 
