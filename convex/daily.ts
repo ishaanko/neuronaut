@@ -75,31 +75,42 @@ async function resolve(ctx: MutationCtx, g: Doc<"guesses">, embedding: number[],
   await settle(ctx, g.playerId, daily);
 }
 
-// Writes the player's result once they solve it or run out of guesses with none pending.
+// Finalize only when pending guesses cannot change the winning attempt or its heats.
 async function settle(ctx: MutationCtx, playerId: Doc<"players">["_id"], daily: Doc<"dailies">) {
   const existing = await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", playerId).eq("date", daily.date)).unique();
   if (existing) return;
   const gs = (await ctx.db.query("guesses").withIndex("by_player_date", (q) => q.eq("playerId", playerId).eq("date", daily.date)).collect())
     .sort((a, b) => a._creationTime - b._creationTime);
   const hit = gs.findIndex((g) => g.correct);
-  const done = gs.every((g) => g.status === "done");
-  if (hit < 0 && !(gs.length >= LIMITS.guesses && done)) return;
   const used = hit >= 0 ? gs.slice(0, hit + 1) : gs;
+  if ((hit < 0 && gs.length < LIMITS.guesses) || used.some((g) => g.status !== "done")) return;
   const solved = hit >= 0;
   await ctx.db.insert("results", { playerId, date: daily.date, solved, guesses: used.length, heats: used.map((g) => g.heat ?? 0) });
   const p = (await ctx.db.get(playerId))!;
-  if (solved) {
-    const streak = p.lastSolved === addDays(daily.date, -1) ? p.streak + 1 : 1;
-    await ctx.db.patch(playerId, {
-      points: p.points + dailyPoints(used.length),
-      dailySolved: p.dailySolved + 1,
-      streak,
-      bestStreak: Math.max(p.bestStreak, streak),
-      lastSolved: daily.date,
-    });
-  } else {
-    await ctx.db.patch(playerId, { streak: 0 });
+  // The index orders this player's results by puzzle date, not completion time.
+  const results = await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", playerId)).collect();
+  let streak = 0;
+  let bestStreak = p.bestStreak; // Preserve historical achievements; reconciliation is separate.
+  let lastSolved: string | undefined;
+  let anchorStreak: number | undefined;
+  for (const r of results) {
+    if (!r.solved) {
+      streak = 0;
+      continue;
+    }
+    streak = lastSolved === addDays(r.date, -1) ? streak + 1 : 1;
+    bestStreak = Math.max(bestStreak, streak);
+    lastSolved = r.date;
+    if (r.date === p.lastSolved) anchorStreak = streak;
   }
+  // Operator resets can remove history without resetting aggregates. Do not
+  // fabricate missing wins or erase a legacy streak; reconcile those separately.
+  const canRebuild = !p.lastSolved || (anchorStreak !== undefined && anchorStreak >= p.streak);
+  if (solved || canRebuild)
+    await ctx.db.patch(playerId, {
+      ...(solved ? { points: p.points + dailyPoints(used.length), dailySolved: p.dailySolved + 1 } : {}),
+      ...(canRebuild ? { streak, bestStreak, ...(lastSolved ? { lastSolved } : {}) } : {}),
+    });
 }
 
 export const guess = mutation({
@@ -114,6 +125,7 @@ export const guess = mutation({
       throw new ConvexError("You already finished today's neuron");
     const key = neuronKey(layer, n);
     const gs = await ctx.db.query("guesses").withIndex("by_player_date", (q) => q.eq("playerId", player._id).eq("date", date)).collect();
+    if (gs.some((g) => g.correct)) throw new ConvexError("Waiting for earlier guesses to finish");
     if (gs.length >= LIMITS.guesses) throw new ConvexError("Out of guesses");
     if (gs.some((g) => g.key === key)) throw new ConvexError(`Already guessed L${layer} N${n}`);
     const id = await ctx.db.insert("guesses", { playerId: player._id, date, key, layer, n, status: "pending" });
