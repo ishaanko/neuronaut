@@ -88,7 +88,8 @@ export const submit = mutation({
     const keys = new Set<string>();
     for (const p of pushes) {
       validNeuron(p.layer, p.n);
-      if (Math.abs(p.dose) < DOSE.min || Math.abs(p.dose) > DOSE.max) throw new ConvexError(`Doses are ${DOSE.min} to ${DOSE.max} (or negative)`);
+      if (!Number.isFinite(p.dose) || Math.abs(p.dose) < DOSE.min || Math.abs(p.dose) > DOSE.max)
+        throw new ConvexError(`Doses are ${DOSE.min} to ${DOSE.max} (or negative)`);
       keys.add(`${p.layer}:${p.n}`);
     }
     if (keys.size !== pushes.length) throw new ConvexError("Each neuron once");
