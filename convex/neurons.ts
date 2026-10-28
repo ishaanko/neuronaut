@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { action, internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
 import { bumpStats, enqueue, globalStats } from "./jobs";
-import { LIMITS, MODEL, POINTS, PREDICT_POINTS, type Rarity, neuronKey, playerFor, requirePlayer, today, validNeuron } from "./lib";
+import { LIMITS, MODEL, POINTS, PREDICT_POINTS, type Rarity, guestArg, neuronKey, playerFor, requirePlayer, today, validNeuron } from "./lib";
 import { effectOf, placeOf } from "./map";
 import { effect } from "./schema";
 
@@ -33,14 +33,15 @@ export const search = query({
   },
 });
 
-// A neuron's card. The measured profile shows only once this player has scanned or guessed it, or someone caught it.
+// A neuron's card. The measured profile shows only once this player (or, signed out, this guest) has scanned or
+// guessed it, or someone caught it.
 export const card = query({
-  args: { layer: v.number(), n: v.number() },
-  handler: async (ctx, { layer, n }) => {
+  args: { layer: v.number(), n: v.number(), guest: guestArg },
+  handler: async (ctx, { layer, n, guest }) => {
     validNeuron(layer, n);
     const key = neuronKey(layer, n);
     const row = await ctx.db.query("neurons").withIndex("by_ln", (q) => q.eq("layer", layer).eq("n", n)).unique();
-    const player = await playerFor(ctx);
+    const player = await playerFor(ctx, guest);
     const scan = player
       ? await ctx.db.query("scans").withIndex("by_player_key", (q) => q.eq("playerId", player._id).eq("key", key)).first()
       : null;

@@ -1,6 +1,6 @@
 // End-to-end run of the whole game against a live stack (Convex, the GPU worker, Vite), in a real browser:
-// sign in, pick a handle, predict and scan a neuron and catch it, play today's daily to a solve, replay yesterday's for
-// practice, see the map, run a lab experiment, enter a bounty and get judged. Also
+// play today's daily to a solve as a guest, sign up and keep that solve, predict and scan a neuron and catch it, replay
+// yesterday's daily for practice, see the map, run a lab experiment, enter a bounty and get judged. Also
 // checks that future puzzles stay hidden and that a NaN bounty dose is refused, straight against the backend.
 //
 //   node e2e/game.mjs [--url http://127.0.0.1:5173]                                   # the local stack
@@ -26,6 +26,7 @@ const out = join("e2e", "artifacts", new Date().toISOString().replace(/[:.]/g, "
 mkdirSync(out, { recursive: true });
 const report = { url, deployment: deployment ?? "local", steps: [] };
 const handle = `e2e_${Math.random().toString(36).slice(2, 8)}`;
+const guest = `${handle}_guest_token`; // the browser's guest token (src/lib/guest.ts), named so cleanup can find it
 
 const keys = Object.fromEntries(
   readFileSync(".env.clerk.local", "utf8").split("\n").filter((l) => l.includes("=")).map((l) => l.split(/=(.*)/s).slice(0, 2)),
@@ -54,7 +55,10 @@ function convex(fn, args) {
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1360, height: 900 } });
-await page.addInitScript(() => localStorage.setItem("neuronaut:seen-howto", "1")); // the first-visit how-to card
+await page.addInitScript((guest) => {
+  localStorage.setItem("neuronaut:seen-howto", "1"); // the first-visit how-to card
+  localStorage.setItem("neuronaut:guest", guest);
+}, guest);
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 
@@ -75,14 +79,45 @@ async function step(name, fn) {
 }
 
 try {
-  await step("sign in and pick a handle", async () => {
-    await page.goto(url + "/");
+  await step("guest: play the daily without an account", async () => {
+    await page.goto(url + "/daily");
     await page.getByRole("button", { name: "Sign in" }).waitFor();
+    await page.getByRole("heading", { name: /Daily #\d+/ }).waitFor({ timeout: 30000 });
+    for (const [l, n] of [[5, 100], [17, 4242]]) {
+      await page.getByLabel("layer", { exact: true }).fill(String(l));
+      await page.getByLabel("neuron", { exact: true }).fill(String(n));
+      await page.getByRole("button", { name: "Guess", exact: true }).click();
+      await page.waitForFunction(() => !document.querySelector('input[aria-label="neuron"]')?.value);  // guess landed
+    }
+    await page.waitForFunction(() => document.querySelectorAll("[data-guess]").length >= 2 && !document.body.innerText.includes("measuring"), null, { timeout: 120000 });
+    return { rows: (await page.locator("[data-guess]").allInnerTexts()).map((r) => r.replace(/\s+/g, " ")) };
+  });
+
+  await step("guest: solve, and the result asks for an account", async () => {
+    const date = new Date().toISOString().slice(0, 10);
+    const ans = convex("admin:answer", { date });
+    await page.getByLabel("layer", { exact: true }).fill(String(ans.layer));
+    await page.getByLabel("neuron", { exact: true }).fill(String(ans.n));
+    await page.getByRole("button", { name: "Guess", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Today's result" }); // the result card opens by itself
+    await dialog.waitFor({ timeout: 60000 });
+    const card = await dialog.innerText();
+    const time = card.match(/Solved in \d+ guess(?:es)?, (\d+:\d\d)/)?.[1];
+    if (!time) throw new Error(`no solve time on the result card: ${card.replace(/\s+/g, " ").slice(0, 120)}`);
+    await dialog.getByRole("button", { name: "Make an account" }).waitFor();
+    await page.keyboard.press("Escape");
+    return { answer: ans, time };
+  });
+
+  await step("sign up and keep the guest's solve", async () => {
     await clerk.signIn({ page, emailAddress: email });
     await page.getByPlaceholder("handle").fill(handle); // a new user is asked for a handle right away
     await page.getByRole("button", { name: "Start" }).click();
     await page.getByRole("link", { name: handle }).waitFor();
-    return { handle };
+    const solved = await page.getByText(/Solved in \d+/).first().textContent({ timeout: 30000 });
+    const points = await page.getByTitle("Your points").innerText();
+    if (/^0 pts/.test(points)) throw new Error(`the guest's solve paid nothing after sign-up: ${points}`);
+    return { handle, solved, points };
   });
 
   await step("lens search", async () => {
@@ -111,33 +146,6 @@ try {
     await page.goto(url + "/dex");
     await page.getByText("e2e catch").first().waitFor();
     return { msg };
-  });
-
-  await step("daily: wrong guesses get heat", async () => {
-    await page.goto(url + "/daily");
-    await page.getByRole("heading", { name: /Daily #\d+/ }).waitFor({ timeout: 30000 });
-    for (const [l, n] of [[5, 100], [17, 4242]]) {
-      await page.getByLabel("layer", { exact: true }).fill(String(l));
-      await page.getByLabel("neuron", { exact: true }).fill(String(n));
-      await page.getByRole("button", { name: "Guess", exact: true }).click();
-      await page.waitForFunction(() => !document.querySelector('input[aria-label="neuron"]')?.value);  // guess landed
-    }
-    await page.waitForFunction(() => document.querySelectorAll("[data-guess]").length >= 2 && !document.body.innerText.includes("measuring"), null, { timeout: 120000 });
-    return { rows: (await page.locator("[data-guess]").allInnerTexts()).map((r) => r.replace(/\s+/g, " ")) };
-  });
-
-  await step("daily: solve", async () => {
-    const date = new Date().toISOString().slice(0, 10);
-    const ans = convex("admin:answer", { date });
-    await page.getByLabel("layer", { exact: true }).fill(String(ans.layer));
-    await page.getByLabel("neuron", { exact: true }).fill(String(ans.n));
-    await page.getByRole("button", { name: "Guess", exact: true }).click();
-    const solved = await page.getByText(/Solved in \d+/).first().textContent({ timeout: 60000 });
-    const card = await page.getByRole("dialog", { name: "Today's result" }).innerText(); // the result card opens by itself
-    const time = card.match(/Solved in \d+ guess(?:es)?, (\d+:\d\d)/)?.[1];
-    if (!time) throw new Error(`no solve time on the result card: ${card.replace(/\s+/g, " ").slice(0, 120)}`);
-    await page.keyboard.press("Escape");
-    return { answer: ans, solved, time };
   });
 
   await step("practice: replay yesterday's puzzle for no points", async () => {
@@ -235,7 +243,9 @@ try {
   const cleanup = { name: "clean up the test player", ok: true, detail: "removed" };
   const errs = [];
   try {
-    if (!convex("admin:removePlayer", { handle }) && report.steps[0]?.ok) throw new Error(`no player ${handle} to remove`);
+    // the guest row became the player on sign-up; if the run stopped before that, remove the guest row instead
+    const removed = convex("admin:removePlayer", { handle }) || convex("admin:removePlayer", { handle: `guest|${guest}` });
+    if (!removed && report.steps[0]?.ok) throw new Error(`no player ${handle} or guest to remove`);
   } catch (e) {
     errs.push(`player: ${String(e?.message ?? e).split("\n")[0]}`);
   }

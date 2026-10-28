@@ -91,6 +91,24 @@ test("one player's daily solve doesn't reveal the answer, hints or guesses to an
   expect((await t.query(api.daily.current, {}))!.guesses).toEqual([]);
 });
 
+test("a guest's game stays theirs: hidden from the leaderboard, never shown to an account, carried over on sign-up", async () => {
+  const { t, alice, seedDaily } = await setup();
+  await seedDaily();
+  await t.mutation(api.worker.putProfiles, { secret: SECRET, jobIds: [], profiles: [profile(1, axis(0))] });
+  const guest = "guest-token-0123456789";
+  await t.mutation(api.daily.guess, { layer: 1, n: 1, guest });
+  expect((await t.query(api.daily.current, { guest }))!.answer).toMatchObject({ layer: 1, n: 99 });
+  expect((await t.query(api.players.leaderboard, {})).map((p) => p.handle).sort()).toEqual(["Alice", "Bob"]);
+  // a signed-in caller holding the token still gets their own game
+  expect(await alice.query(api.daily.current, { guest })).toMatchObject({ result: null, answer: null });
+  const carol = t.withIdentity({ tokenIdentifier: "test|carol" });
+  await carol.mutation(api.players.join, { handle: "Carol", guest });
+  expect((await carol.query(api.daily.current, {}))!.result?.solved).toBe(true);
+  expect((await carol.query(api.players.me, {}))!.points).toBe(dailyPoints(1));
+  // the token no longer reaches the game it used to name
+  expect(await t.query(api.daily.current, { guest })).toMatchObject({ result: null, guesses: [] });
+});
+
 test("a measured guess settles its own player's daily, whoever's context the worker's callback arrives in", async () => {
   const { t, alice, bob, aliceId, seedDaily } = await setup();
   await seedDaily();

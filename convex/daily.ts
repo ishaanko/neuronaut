@@ -9,11 +9,13 @@ import {
   addDays,
   cosine,
   dailyNumber,
+  dailyPlayer,
+  guestArg,
+  guestPlayer,
   heat,
   ladderRank,
   neuronKey,
   playerFor,
-  requirePlayer,
   SOLVE_COS,
   today,
   validNeuron,
@@ -38,16 +40,16 @@ export function dailyPoints(guesses: number) {
 }
 
 // Today's puzzle: the hidden neuron's steered replies next to the unsteered ones, hints this player has unlocked, their
-// guesses (hottest first) and, once they finish, the answer.
+// guesses (hottest first) and, once they finish, the answer. Signed out, `guest` picks the guest's own game.
 export const current = query({
-  args: { date: v.optional(v.string()) },
-  handler: async (ctx, { date }) => {
+  args: { date: v.optional(v.string()), guest: guestArg },
+  handler: async (ctx, { date, guest }) => {
     const now = today();
     const d = date ?? now;
     if (d > now) return null; // puzzles are generated days ahead; their clues stay hidden until their date
     const daily = await dailyFor(ctx, d);
     if (!daily) return null;
-    const player = await playerFor(ctx);
+    const player = await playerFor(ctx, guest);
     const guesses = player
       ? await ctx.db.query("guesses").withIndex("by_player_date", (q) => q.eq("playerId", player._id).eq("date", d)).collect()
       : [];
@@ -101,9 +103,9 @@ export const current = query({
 
 // Past puzzles, newest first, for practice: how many played each live and solved it, and how this player did.
 export const archive = query({
-  args: {},
-  handler: async (ctx) => {
-    const player = await playerFor(ctx);
+  args: { guest: guestArg },
+  handler: async (ctx, { guest }) => {
+    const player = await playerFor(ctx, guest);
     const past = await ctx.db.query("dailies").withIndex("by_date", (q) => q.lt("date", today())).order("desc").take(60);
     return await Promise.all(
       past.map(async (d) => {
@@ -178,14 +180,17 @@ async function reveal(ctx: MutationCtx, playerId: Doc<"players">["_id"], daily: 
     await enqueue(ctx, "profile", `profile:${daily.key}`, { layer: daily.layer, n: daily.n }, 1);
 }
 
-// Starts this player's solve clock on a puzzle the first time they open it. Signed-out visitors and players who
-// already finished are ignored, so the page can call it on every visit.
+// Starts this player's solve clock on a puzzle the first time they open it. A signed-out visitor with a guest token
+// gets their guest row here. Signed-in users without a handle and players who already finished are ignored, so the
+// page can call it on every visit.
 export const open = mutation({
-  args: { date: v.optional(v.string()) },
+  args: { date: v.optional(v.string()), guest: guestArg },
   handler: async (ctx, args) => {
-    const player = await playerFor(ctx);
     const date = args.date ?? today();
-    if (!player || date > today() || !(await dailyFor(ctx, date))) return;
+    if (date > today() || !(await dailyFor(ctx, date))) return;
+    const signedIn = !!(await ctx.auth.getUserIdentity());
+    const player = signedIn || args.guest === undefined ? await playerFor(ctx) : await guestPlayer(ctx, args.guest);
+    if (!player) return;
     const has = (t: "opens" | "results") =>
       ctx.db.query(t).withIndex("by_player_date", (q) => q.eq("playerId", player._id).eq("date", date)).first();
     if (!(await has("opens")) && !(await has("results"))) await ctx.db.insert("opens", { playerId: player._id, date });
@@ -193,12 +198,12 @@ export const open = mutation({
 });
 
 // A guess at today's puzzle, or with `date` at a past one for practice: scored the same way, but it pays no points and
-// doesn't touch the streak.
+// doesn't touch the streak. Signed out, `guest` plays as that guest.
 export const guess = mutation({
-  args: { layer: v.number(), n: v.number(), date: v.optional(v.string()) },
-  handler: async (ctx, { layer, n, ...args }) => {
+  args: { layer: v.number(), n: v.number(), date: v.optional(v.string()), guest: guestArg },
+  handler: async (ctx, { layer, n, guest, ...args }) => {
     validNeuron(layer, n);
-    const player = await requirePlayer(ctx);
+    const player = await dailyPlayer(ctx, guest);
     const date = args.date ?? today();
     if (date > today()) throw new ConvexError("That puzzle is not out yet");
     const practice = date < today();

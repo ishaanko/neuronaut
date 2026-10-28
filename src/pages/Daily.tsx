@@ -43,7 +43,7 @@ function untilNext(now: number) {
 function ResultCard({ d, onClose }: { d: Daily; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const now = useNow(true);
-  const { me } = useSession();
+  const { me, signedIn, signUp } = useSession();
   const r = d.result!;
   return (
     <div>
@@ -66,13 +66,21 @@ function ResultCard({ d, onClose }: { d: Daily; onClose: () => void }) {
         </div>
         <div>
           <dt className="font-mono text-[10px] uppercase tracking-wider text-dim">Your streak</dt>
-          <dd className="font-mono text-2xl tabular-nums">{d.practice ? "-" : (me?.streak ?? 0)}</dd>
+          <dd className="font-mono text-2xl tabular-nums">{d.practice || !signedIn ? "-" : (me?.streak ?? 0)}</dd>
         </div>
         <div>
           <dt className="font-mono text-[10px] uppercase tracking-wider text-dim">Next neuron</dt>
           <dd className="font-mono text-2xl tabular-nums">{untilNext(now)}</dd>
         </div>
       </dl>
+      {!signedIn && (
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <p className="text-dim">Make an account to keep this result, start a streak and get on the leaderboard.</p>
+          <Button variant="ghost" className="shrink-0" onClick={signUp}>
+            Make an account
+          </Button>
+        </div>
+      )}
       <div className="mt-6 flex gap-2">
         <Button
           size="lg"
@@ -97,9 +105,10 @@ function ResultCard({ d, onClose }: { d: Daily; onClose: () => void }) {
 function WhyHeat({ d, pick, onPick }: { d: Daily; pick: string | null; onPick: (k: string) => void }) {
   const wrong = d.guesses.filter((g) => !g.correct && g.status === "done");
   const g = wrong.find((x) => `${x.layer}:${x.n}` === pick) ?? wrong[0];
+  const { guest } = useSession();
   const overview = useQuery(api.neurons.overview);
-  const answer = useQuery(api.neurons.card, { layer: d.answer!.layer, n: d.answer!.n });
-  const guessed = useQuery(api.neurons.card, g ? { layer: g.layer, n: g.n } : "skip");
+  const answer = useQuery(api.neurons.card, { layer: d.answer!.layer, n: d.answer!.n, guest });
+  const guessed = useQuery(api.neurons.card, g ? { layer: g.layer, n: g.n, guest } : "skip");
   if (!g) return null;
   return (
     <section>
@@ -155,7 +164,8 @@ function GuessMap({ d }: { d: Daily }) {
 
 // Past puzzles to replay for practice, newest first.
 function Archive({ current }: { current: string }) {
-  const past = useQuery(api.daily.archive, {});
+  const { guest } = useSession();
+  const past = useQuery(api.daily.archive, { guest });
   if (!past?.length) return null;
   return (
     <section>
@@ -177,9 +187,9 @@ function Archive({ current }: { current: string }) {
 }
 
 export function Daily() {
-  const { me, requireJoin } = useSession();
+  const { me, signedIn, settled, guest, requirePlay, signUp } = useSession();
   const { date } = useParams();
-  const d = useQuery(api.daily.current, date ? { date } : {});
+  const d = useQuery(api.daily.current, { ...(date ? { date } : {}), guest });
   const guess = useMutation(api.daily.guess);
   const openPuzzle = useMutation(api.daily.open);
   const [pick, setPick] = useState<string | null>(null);
@@ -199,11 +209,11 @@ export function Daily() {
   const lastAt = d && d.guesses.length >= d.limit ? Math.max(...d.guesses.map((g) => g.at)) : null;
   const now = useNow(!!d?.startedAt && !finished && lastAt === null);
 
-  // start the solve clock the first time a signed-in player sees this puzzle
-  const needsOpen = !!me && !!d && !finished && d.startedAt === null;
+  // start the solve clock the first time a player or guest sees this puzzle
+  const needsOpen = settled && (!!me || !signedIn) && !!d && !finished && d.startedAt === null;
   useEffect(() => {
-    if (needsOpen) openPuzzle(date ? { date } : {}).catch(() => {});
-  }, [needsOpen, date, openPuzzle]);
+    if (needsOpen) openPuzzle({ ...(date ? { date } : {}), guest }).catch(() => {});
+  }, [needsOpen, date, guest, openPuzzle]);
 
   // open the result card once, the first time a player sees this puzzle finished
   useEffect(() => {
@@ -217,7 +227,7 @@ export function Daily() {
 
   const submit = async () => {
     setError(null);
-    const ok = await requireJoin();
+    const ok = await requirePlay();
     if (!ok) return;
     const fail = (msg: string) => {
       setError(msg);
@@ -225,7 +235,7 @@ export function Daily() {
     };
     if (layer === "" || n === "") return fail("Enter a layer and a neuron number");
     try {
-      await guess({ layer: Number(layer), n: Number(n), ...(date ? { date } : {}) });
+      await guess({ layer: Number(layer), n: Number(n), ...(date ? { date } : {}), guest });
       setN("");
     } catch (e) {
       fail(errorText(e));
@@ -336,6 +346,15 @@ export function Daily() {
               <Button className="mt-4 w-full" onClick={() => setResultOpen(true)}>
                 See result and share
               </Button>
+              {!signedIn && (
+                <p className="mt-3 text-sm text-dim">
+                  Playing as a guest.{" "}
+                  <button className="text-fg underline underline-offset-4" onClick={signUp}>
+                    Make an account
+                  </button>{" "}
+                  to save it.
+                </p>
+              )}
             </Panel>
           ) : (
             <Panel ascii={d.date} className="p-5">

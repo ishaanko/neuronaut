@@ -50,8 +50,9 @@ export const resetPlayers = internalMutation({
   },
 });
 
-// Handles the E2E and calibration scripts sign up with. Only these can be removed one at a time.
-const TEST_HANDLE = /^(e2e|calib)_/;
+// Handles the E2E and calibration scripts sign up with, and the E2E's guest ("guest|e2e_...", lib.ts). Only these can
+// be removed one at a time.
+const TEST_HANDLE = /^(guest\|)?(e2e|calib)_/;
 
 // Deletes one test player and everything they did, so test runs don't show on the leaderboard, the dex, the map or a
 // daily's solver count. Their catches become catchable again. e2e/game.mjs calls this when it finishes.

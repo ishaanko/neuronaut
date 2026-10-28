@@ -67,7 +67,8 @@ export default defineSchema({
   players: defineTable({
     handle: v.string(),
     handleLower: v.string(),
-    userId: v.string(), // the Clerk identity's tokenIdentifier: one player per sign-in
+    userId: v.string(), // the Clerk identity's tokenIdentifier: one player per sign-in. Guests: "guest|<token>" (lib.ts)
+    guest: v.optional(v.literal(true)), // plays the daily without an account; hidden from the leaderboard
     points: v.number(),
     caught: v.number(),
     dailySolved: v.number(),
