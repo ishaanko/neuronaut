@@ -18,7 +18,8 @@ type Daily = NonNullable<(typeof api.daily.current)["_returnType"]>;
 function shareText(d: Daily) {
   const r = d.result!;
   const sq = r.heats.map((h, i) => heatEmoji(h, r.solved && i === r.heats.length - 1)).join("");
-  return `Neuronaut #${d.number}${r.practice ? " (practice)" : ""} ${r.solved ? r.guesses : "X"}/${d.limit}\n${sq}\n${location.origin}/daily`;
+  const time = r.seconds === null ? "" : ` in ${clock(r.seconds)}`;
+  return `Neuronaut #${d.number}${r.practice ? " (practice)" : ""} ${r.solved ? r.guesses : "X"}/${d.limit}${time}\n${sq}\n${location.origin}/daily`;
 }
 
 // The current time, updated once a second while `on`.
@@ -52,6 +53,7 @@ function ResultCard({ d, onClose }: { d: Daily; onClose: () => void }) {
       <div className={`pop mt-1 text-4xl font-bold tracking-tight ${r.solved ? "text-rust" : "text-fg"}`}>{r.solved ? "Solved." : "Out of guesses."}</div>
       <p className="mt-1 text-lg">
         {r.solved ? `Solved in ${r.guesses} ${r.guesses === 1 ? "guess" : "guesses"}` : "The neuron got away."}
+        {r.seconds !== null && <span className="text-dim">, {clock(r.seconds)}</span>}
       </p>
       <div className="mt-1 text-dim">
         It was <NeuronLink layer={d.answer!.layer} n={d.answer!.n} className="text-base text-fg" />
@@ -175,10 +177,11 @@ function Archive({ current }: { current: string }) {
 }
 
 export function Daily() {
-  const { requireJoin } = useSession();
+  const { me, requireJoin } = useSession();
   const { date } = useParams();
   const d = useQuery(api.daily.current, date ? { date } : {});
   const guess = useMutation(api.daily.guess);
+  const openPuzzle = useMutation(api.daily.open);
   const [pick, setPick] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [layer, setLayer] = useState("");
@@ -192,6 +195,13 @@ export function Daily() {
   useUnlock("heat", !!d?.guesses.some((g) => g.status === "done"));
 
   const finished = !!d?.result;
+  const now = useNow(!!d?.startedAt && !finished);
+
+  // start the solve clock the first time a signed-in player sees this puzzle
+  const needsOpen = !!me && !!d && !finished && d.startedAt === null;
+  useEffect(() => {
+    if (needsOpen) openPuzzle(date ? { date } : {}).catch(() => {});
+  }, [needsOpen, date, openPuzzle]);
 
   // open the result card once, the first time a player sees this puzzle finished
   useEffect(() => {
@@ -257,6 +267,14 @@ export function Daily() {
         cells={[
           { label: "Solved", value: `${d.solvers} of ${d.players}` },
           { label: "Guesses", value: `${used} of ${d.limit}` },
+          {
+            label: "Your time",
+            value: (
+              <span className="font-mono tabular-nums">
+                {d.result?.seconds != null ? clock(d.result.seconds) : d.startedAt ? clock((now - d.startedAt) / 1000) : "-"}
+              </span>
+            ),
+          },
           { label: "Layer range", value: hint(d.band && `L${d.band[0]} to L${d.band[1]}`, d.hintsAt.band) },
           { label: "A word it pushes", value: hint(d.hint, d.hintsAt.token) },
         ]}
@@ -308,6 +326,7 @@ export function Daily() {
             <Panel ascii={d.date} className="pop p-5">
               <div className="text-lg font-semibold">
                 {d.result!.solved ? `Solved in ${d.result!.guesses}` : "Out of guesses"}
+                {d.result!.seconds !== null && <span className="font-normal text-dim">, {clock(d.result!.seconds)}</span>}
               </div>
               <div className="mt-1 text-dim">
                 It was <NeuronLink layer={d.answer!.layer} n={d.answer!.n} className="text-base text-fg" />

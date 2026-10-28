@@ -38,7 +38,7 @@ export const resetPlayers = internalMutation({
       const p = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", c.key)).unique();
       if (p) await ctx.db.patch(p._id, { caught: false });
     }
-    for (const t of ["scans", "catches", "guesses", "results", "entries", "players"] as const)
+    for (const t of ["scans", "catches", "guesses", "results", "opens", "entries", "players"] as const)
       for (const d of await ctx.db.query(t).collect()) {
         await ctx.db.delete(d._id);
         n++;
@@ -76,6 +76,7 @@ export const removePlayer = internalMutation({
       ...(await ctx.db.query("scans").withIndex("by_player", (q) => q.eq("playerId", p._id)).collect()),
       ...(await ctx.db.query("guesses").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
       ...(await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
+      ...(await ctx.db.query("opens").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
       ...(await ctx.db.query("entries").withIndex("by_player_bounty", (q) => q.eq("playerId", p._id)).collect()),
       ...(await ctx.db.query("experiments").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
     ];

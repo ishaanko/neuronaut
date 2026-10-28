@@ -175,6 +175,21 @@ describe("daily settlement", () => {
     expect(d.result).toMatchObject({ solved: true, guesses: 1, heats: [100] });
   });
 
+  test("solve time runs from first opening the puzzle to the winning guess, not to when the GPU scored it", async () => {
+    const { t, player, putProfiles } = await setup();
+    await withDaily(t);
+    const alice = await player("alice");
+    await alice.mutation(api.daily.open, {});
+    vi.setSystemTime(NOW + 60_000);
+    await alice.mutation(api.daily.open, {}); // a reload doesn't restart the clock
+    await alice.mutation(api.daily.guess, { layer: 1, n: 1 });
+    vi.setSystemTime(NOW + 100_000);
+    await alice.mutation(api.daily.guess, { layer: 5, n: 5 }); // both wait on the GPU
+    vi.setSystemTime(NOW + 500_000);
+    await putProfiles([profile(5, 5, axis(0)), profile(1, 1, axis(1))]);
+    expect((await alice.query(api.daily.current, {}))!.result).toMatchObject({ solved: true, seconds: 100 });
+  });
+
   test("tomorrow's puzzle isn't readable today", async () => {
     const { t } = await setup();
     await withDaily(t, "2026-10-28");
