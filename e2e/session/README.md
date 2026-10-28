@@ -5,10 +5,10 @@ This fixture bundles the actual SessionProvider, JoinDialog and Lab with synthet
 Run from the repository root with the existing dependencies and an installed compatible Chrome:
 
 ```sh
-CHROME_PATH='/path/to/chrome' node tests/session/run.mjs
+CHROME_PATH='/path/to/chrome' node e2e/session/run.mjs
 ```
 
-If CHROME_PATH is omitted, the script uses Playwright's existing Chromium executable. It never installs browsers or packages. This is separate from npm test and from the prohibited live e2e/game.mjs suite.
+If CHROME_PATH is omitted, the script uses Playwright's existing Chromium executable. It never installs browsers or packages. This is separate from npm test and from the live e2e/game.mjs suite.
 
 For the identical tests against the provider before this fix, save `git show a6aa7ce:src/lib/session.tsx` to a temporary file outside the source tree, then set SESSION_SOURCE to that path. The Vite load override replaces only the provider's source while retaining its real import resolution. That baseline yields seven failures and eight passes; the fixed provider passes all fifteen cases.
 

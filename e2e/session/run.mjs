@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 const root = process.cwd();
-const mock = resolve(root, "tests/session/mocks.ts");
+const mock = resolve(root, "e2e/session/mocks.ts");
 const source = resolve(root, "src/lib/session.tsx");
 const result = await build({
   configFile: false, root, logLevel: "error",
@@ -17,7 +17,7 @@ const result = await build({
     { find: "@clerk/react", replacement: mock },
     { find: "convex/react", replacement: mock },
   ] },
-  build: { write: false, minify: false, lib: { entry: resolve(root, "tests/session/fixture.tsx"), formats: ["iife"], name: "SessionTest" } },
+  build: { write: false, minify: false, lib: { entry: resolve(root, "e2e/session/fixture.tsx"), formats: ["iife"], name: "SessionTest" } },
   define: { "process.env.NODE_ENV": JSON.stringify("development") },
 });
 const bundle = (Array.isArray(result) ? result[0] : result).output.find((x) => x.type === "chunk").code;
