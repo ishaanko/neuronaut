@@ -1,107 +1,53 @@
 @import "tailwindcss";
 /* Latin only: the site has no other scripts, and the full packages pull in Cyrillic, Vietnamese and symbol subsets. */
-@import "@fontsource/geist-sans/latin-400.css";
-@import "@fontsource/geist-sans/latin-500.css";
-@import "@fontsource/geist-sans/latin-600.css";
+@import "@fontsource/source-serif-4/latin-400.css";
+@import "@fontsource/source-serif-4/latin-400-italic.css";
+@import "@fontsource/source-serif-4/latin-600.css";
+@import "@fontsource/source-serif-4/latin-700.css";
 @import "@fontsource/geist-mono/latin-400.css";
 @import "@fontsource/geist-mono/latin-500.css";
-@import "@fontsource/silkscreen/latin-400.css";
 
-/* Theme colors are CSS variables so light (the default) and dark (html.dark) share every utility class. */
-@theme {
-  --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+/* A printed field plate: ink on paper, rust for emphasis. Text colors hold at least 4.5:1 on --bg and --card. */
+@theme static {
+  --font-serif: "Source Serif 4", ui-serif, Georgia, serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
-  --font-pixel: "Silkscreen", "Geist Mono", monospace;
 
-  --color-bg: var(--bg);
-  --color-card: var(--card);
-  --color-fg: var(--fg);
-  --color-dim: var(--dim);
-  --color-faint: var(--faint);
-  --color-line: var(--line);
-  --color-line-strong: var(--line-strong);
-  --color-raised: var(--raised);
-  --color-accent: var(--accent);
-  --color-accent-fg: var(--accent-fg);
+  --color-bg: #ece7dc;
+  --color-card: #f4f0e6;
+  --color-raised: #e2dccf;
+  --color-fg: #1b1814;
+  --color-dim: #4f4940;
+  --color-faint: #685f53;
+  --color-line: #cbc3b4;
+  --color-line-strong: #9d9585;
+  --color-accent: #1b1814;
+  --color-accent-fg: #f4f0e6;
+  --color-rust: #a6481f;
 
-  --color-legendary: var(--legendary);
-  --color-epic: var(--epic);
-  --color-rare: var(--rare);
-  --color-uncommon: var(--uncommon);
-  --color-common: var(--common);
-  --color-glitch: var(--glitch);
+  --color-legendary: #9a6b07;
+  --color-epic: #6a3bb0;
+  --color-rare: #1c6593;
+  --color-uncommon: #3a7a3c;
+  --color-common: #685f53;
+  --color-glitch: #b02f5b;
 
-  /* daily heat, Wordle-style: grey (cold), yellow, orange, red (hot), green (hit) */
-  --color-cold: var(--cold);
-  --color-warm: var(--warm);
-  --color-warmer: var(--warmer);
-  --color-hot: var(--hot);
-  --color-good: var(--good);
+  /* daily heat, Wordle-style: grey (cold), ochre, orange, red (hot), green (hit). Fills only. */
+  --color-cold: #9a9285;
+  --color-warm: #c9a23a;
+  --color-warmer: #d77b2e;
+  --color-hot: #b8321f;
+  --color-good: #3d7a46;
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-}
-
-:root {
-  --bg: #f7f5f0;
-  --card: #ffffff;
-  --fg: #16130f;
-  --dim: #57524a;
-  --faint: #6f695f; /* still 4.5:1 on --bg */
-  --line: #e7e2d8;
-  --line-strong: #d3ccbf;
-  --raised: #efebe3;
-  --accent: #16130f;
-  --accent-fg: #ffffff;
-
-  --legendary: #a16207;
-  --epic: #7c3aed;
-  --rare: #0369a1;
-  --uncommon: #15803d;
-  --common: #57534e;
-  --glitch: #be185d;
-
-  --cold: #787c7e;
-  --warm: #c9b458;
-  --warmer: #e8843c;
-  --hot: #d9433b;
-  --good: #6aaa64;
-  color-scheme: light;
-}
-
-html.dark {
-  --bg: #000;
-  --card: #0a0a0a;
-  --fg: #fff;
-  --dim: #b4b4b4;
-  --faint: #8c8c8c;
-  --line: #1f1f1f;
-  --line-strong: #333;
-  --raised: #121212;
-  --accent: #fff;
-  --accent-fg: #000;
-
-  --legendary: #ffc93c;
-  --epic: #c48cff;
-  --rare: #4fc3f7;
-  --uncommon: #7ee08f;
-  --common: #a3a3a3;
-  --glitch: #ff4f8b;
-
-  --cold: #5f6366;
-  --warm: #b59f3b;
-  --warmer: #e07a2e;
-  --hot: #e5534b;
-  --good: #538d4e;
-  color-scheme: dark;
 }
 
 @layer base {
   html {
     background: var(--color-bg);
     color: var(--color-fg);
-    font-family: var(--font-sans);
-    font-size: 16px;
+    font-family: var(--font-serif);
+    font-size: 17px;
+    color-scheme: light;
     -webkit-font-smoothing: antialiased;
   }
 
@@ -127,30 +73,32 @@ html.dark {
   }
 }
 
-/* Model output: monospace on a faint scanline texture, static (no animation). */
-.screen {
+/* A static field of ASCII characters behind a panel's content (components/ui.tsx Ascii). It fades out toward the
+   bottom left so text laid over it stays readable. */
+.ascii {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  white-space: pre;
   font-family: var(--font-mono);
-  font-size: 14px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  background-image: repeating-linear-gradient(to bottom, color-mix(in srgb, var(--fg) 3%, transparent) 0 1px, transparent 1px 3px);
-}
-
-/* A dithered square, the retro rarity mark. */
-.pixel-mark {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  background-color: currentColor;
-  mask: conic-gradient(#000 25%, transparent 0 50%, #000 0 75%, transparent 0) 0 0 / 2px 2px;
+  font-size: 11px;
+  line-height: 13px;
+  color: color-mix(in srgb, var(--color-fg) 13%, transparent);
+  mask-image: linear-gradient(to bottom left, #000 0%, rgb(0 0 0 / 0.45) 40%, transparent 75%);
 }
 
 /* ---------- motion ----------
    Every animation here is feedback or a rare moment (a scored guess, a solve, a modal); nothing loops. */
 
-/* press feedback on anything pressable */
 .press {
-  transition: transform 160ms var(--ease-out);
+  transition:
+    transform 160ms var(--ease-out),
+    background-color 160ms,
+    border-color 160ms,
+    color 160ms;
 }
 .press:active:not(:disabled) {
   transform: scale(0.97);
@@ -192,11 +140,11 @@ html.dark {
 }
 @keyframes pop {
   0% {
-    transform: scale(0.94);
+    transform: scale(0.96);
     opacity: 0;
   }
   60% {
-    transform: scale(1.02);
+    transform: scale(1.01);
     opacity: 1;
   }
 }
@@ -214,7 +162,7 @@ html.dark {
     transform 200ms var(--ease-out);
   @starting-style {
     opacity: 0;
-    transform: scale(0.96) translateY(8px);
+    transform: scale(0.97) translateY(8px);
   }
 }
 

@@ -4,10 +4,12 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { LADDER_EXACT } from "../../convex/rules";
 import { BehaviorMap, type Dot } from "../components/BehaviorMap";
+import { HowToPlay } from "../components/HowToPlay";
 import { LensSearch } from "../components/LensSearch";
-import { Replies } from "../components/Replies";
-import { Button, ErrorLine, HeatBar, Label, Modal, NeuronInput, NeuronLink, Steps } from "../components/ui";
-import { dexNo, heatBg, heatEmoji, heatVar, rankText } from "../lib/format";
+import { Replies, Reply, REPLY_TOKENS } from "../components/Replies";
+import { ChartLegend, HeatChart } from "../components/HeatChart";
+import { Button, ErrorLine, HeatBar, Label, Modal, NeuronInput, NeuronLink, Panel, Plate } from "../components/ui";
+import { clock, dexNo, heatEmoji, heatVar, rankText } from "../lib/format";
 import { useUnlock } from "../lib/notes";
 import { errorText, useSession } from "../lib/session";
 
@@ -19,54 +21,56 @@ function shareText(d: Daily) {
   return `Neuronaut #${d.number}${r.practice ? " (practice)" : ""} ${r.solved ? r.guesses : "X"}/${d.limit}\n${sq}\n${location.origin}/daily`;
 }
 
-// Time until the next puzzle (00:00 UTC), ticking once a second while the result card is open.
-function useCountdown() {
-  const [now, setNow] = useState(Date.now());
+// The current time, updated once a second while `on`.
+function useNow(on: boolean) {
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    if (!on) return;
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [on]);
+  return now;
+}
+
+// Time until the next puzzle (00:00 UTC).
+function untilNext(now: number) {
   const next = new Date(now);
   next.setUTCHours(24, 0, 0, 0);
-  const s = Math.max(0, Math.floor((next.getTime() - now) / 1000));
-  return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((x) => String(x).padStart(2, "0")).join(":");
+  return clock((next.getTime() - now) / 1000);
 }
 
 function ResultCard({ d, onClose }: { d: Daily; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
-  const countdown = useCountdown();
+  const now = useNow(true);
   const { me } = useSession();
   const r = d.result!;
   return (
-    <div className="text-center">
-      <div className={`pop font-pixel text-3xl ${r.solved ? "text-good" : "text-hot"}`}>
-        {r.solved ? "SOLVED" : "OUT OF GUESSES"}
+    <div>
+      <div className="font-mono text-xs uppercase tracking-[0.14em] text-dim">
+        {d.practice ? "Practice" : "Daily"} Nº {d.number}
       </div>
-      <p className="mt-2 text-lg">{r.solved ? `Solved in ${r.guesses}` : "The neuron got away."}</p>
+      <div className={`pop mt-1 text-4xl font-bold tracking-tight ${r.solved ? "text-rust" : "text-fg"}`}>{r.solved ? "Solved." : "Out of guesses."}</div>
+      <p className="mt-1 text-lg">
+        {r.solved ? `Solved in ${r.guesses} ${r.guesses === 1 ? "guess" : "guesses"}` : "The neuron got away."}
+      </p>
       <div className="mt-1 text-dim">
-        The neuron was <NeuronLink layer={d.answer!.layer} n={d.answer!.n} className="text-base text-fg" />
+        It was <NeuronLink layer={d.answer!.layer} n={d.answer!.n} className="text-base text-fg" />
       </div>
-      <div className="stagger mt-5 flex flex-wrap justify-center gap-1.5 text-2xl" aria-label="your guesses">
-        {r.heats.map((h, i) => (
-          <span key={i} style={{ ["--i" as string]: i }}>
-            {heatEmoji(h, r.solved && i === r.heats.length - 1)}
-          </span>
-        ))}
-      </div>
-      <div className="mt-6 grid grid-cols-3 gap-2">
-        <div className="rounded-xl bg-raised py-3">
-          <div className="font-mono text-2xl tabular-nums">{d.solvers}</div>
-          <div className="text-xs text-dim">{d.practice ? "solved that day" : "solved today"}</div>
+      <HeatChart className="mt-5" slots={d.limit} marks={r.heats.map((h, i) => ({ heat: h, correct: r.solved && i === r.heats.length - 1 }))} />
+      <dl className="mt-4 grid grid-cols-3 gap-4 border-y border-fg py-4">
+        <div>
+          <dt className="font-mono text-[10px] uppercase tracking-wider text-dim">{d.practice ? "Solved that day" : "Solved today"}</dt>
+          <dd className="font-mono text-2xl tabular-nums">{d.solvers}</dd>
         </div>
-        <div className="rounded-xl bg-raised py-3">
-          <div className="font-mono text-2xl tabular-nums">{d.practice ? "-" : (me?.streak ?? 0)}</div>
-          <div className="text-xs text-dim">{d.practice ? "practice, no streak" : "your streak"}</div>
+        <div>
+          <dt className="font-mono text-[10px] uppercase tracking-wider text-dim">Your streak</dt>
+          <dd className="font-mono text-2xl tabular-nums">{d.practice ? "-" : (me?.streak ?? 0)}</dd>
         </div>
-        <div className="rounded-xl bg-raised py-3">
-          <div className="font-mono text-2xl tabular-nums">{countdown}</div>
-          <div className="text-xs text-dim">next neuron</div>
+        <div>
+          <dt className="font-mono text-[10px] uppercase tracking-wider text-dim">Next neuron</dt>
+          <dd className="font-mono text-2xl tabular-nums">{untilNext(now)}</dd>
         </div>
-      </div>
+      </dl>
       <div className="mt-6 flex gap-2">
         <Button
           size="lg"
@@ -86,49 +90,6 @@ function ResultCard({ d, onClose }: { d: Daily; onClose: () => void }) {
   );
 }
 
-// One square per guess allowed, Wordle-style: scored guesses in the order made, colored by heat; the rest empty.
-function Slots({ d }: { d: Daily }) {
-  const inOrder = [...d.guesses].sort((a, b) => a.at - b.at);
-  return (
-    <div className="mt-3 flex gap-1" aria-label={`${d.guesses.length} of ${d.limit} guesses used`}>
-      {Array.from({ length: d.limit }, (_, i) => {
-        const g = inOrder[i];
-        const fill = !g
-          ? "border-2 border-line-strong"
-          : g.status === "pending"
-            ? "bg-line-strong"
-            : heatBg(g.heat, g.correct);
-        return <span key={i} className={`h-3 flex-1 rounded-sm ${fill}`} />;
-      })}
-    </div>
-  );
-}
-
-function Hint({
-  label,
-  value,
-  unlockAt,
-  used,
-}: {
-  label: string;
-  value: string | null;
-  unlockAt: number;
-  used: number;
-}) {
-  return (
-    <div
-      className={`flex items-center justify-between rounded-xl border px-3.5 py-2.5 ${value ? "border-line-strong bg-card" : "border-dashed border-line-strong"}`}
-    >
-      <span className="text-sm text-dim">{label}</span>
-      {value ? (
-        <span className="pop font-mono font-medium">{value}</span>
-      ) : (
-        <span className="text-sm text-faint">unlocks in {unlockAt - used} guesses</span>
-      )}
-    </div>
-  );
-}
-
 // After a puzzle: the answer's replies next to one guess's replies on the same profile prompts, so a player can see
 // what heat measured. Both cards are visible by then (the player guessed one, and finishing reveals the answer).
 function WhyHeat({ d, pick, onPick }: { d: Daily; pick: string | null; onPick: (k: string) => void }) {
@@ -140,10 +101,10 @@ function WhyHeat({ d, pick, onPick }: { d: Daily; pick: string | null; onPick: (
   if (!g) return null;
   return (
     <section>
-      <Label className="mb-2">Why each guess scored what it did</Label>
-      <p className="mb-4 max-w-[62ch] text-dim">
+      <Label>Why each guess scored what it did</Label>
+      <p className="mb-4 mt-1 max-w-[62ch] text-dim">
         Heat compares what two neurons do, not their numbers. Here is the answer next to one of your guesses on the same four
-        questions. The closer they read, the higher the cosine between their behavior embeddings.
+        questions. The more alike they read, the higher the cosine between their behavior embeddings.
       </p>
       <div className="mb-4 flex flex-wrap gap-2">
         {wrong.map((x) => {
@@ -152,7 +113,7 @@ function WhyHeat({ d, pick, onPick }: { d: Daily; pick: string | null; onPick: (
             <button
               key={k}
               onClick={() => onPick(k)}
-              className={`press rounded-lg px-3 py-1.5 font-mono text-sm ${x === g ? "bg-accent text-accent-fg" : "bg-raised hover:bg-line"}`}
+              className={`press rounded-[3px] px-3 py-1.5 font-mono text-sm ${x === g ? "bg-accent text-accent-fg" : "border border-line-strong hover:bg-raised"}`}
             >
               {dexNo(x.layer, x.n)} · {x.cos?.toFixed(2)}
             </button>
@@ -168,7 +129,7 @@ function WhyHeat({ d, pick, onPick }: { d: Daily; pick: string | null; onPick: (
           baselineLabel={`Your guess ${dexNo(g.layer, g.n)}: cosine ${g.cos?.toFixed(2)}, heat ${g.heat}`}
         />
       ) : (
-        <div className="rounded-2xl border border-line bg-card p-5 text-dim">Loading the answer's replies…</div>
+        <p className="text-dim">Loading the answer's replies…</p>
       )}
     </section>
   );
@@ -178,16 +139,14 @@ function WhyHeat({ d, pick, onPick }: { d: Daily; pick: string | null; onPick: (
 // Quiet guesses (no place) don't show.
 function GuessMap({ d }: { d: Daily }) {
   const dots: Dot[] = d.guesses.flatMap((g) => (g.place ? [{ layer: g.layer, n: g.n, ...g.place, color: heatVar(g.heat, g.correct), label: g.heat === null ? "" : `heat ${g.heat}` }] : []));
-  if (d.answer?.place) dots.push({ layer: d.answer.layer, n: d.answer.n, ...d.answer.place, color: "--good", ring: true, size: 7, label: "the answer" });
+  if (d.answer?.place) dots.push({ layer: d.answer.layer, n: d.answer.n, ...d.answer.place, color: "--color-good", ring: true, size: 7, label: "the answer" });
   return (
     <div>
       <Label className="mb-2">Your guesses on the map</Label>
-      <div className="rounded-2xl border border-line bg-card p-3">
+      <div className="rounded-[3px] border border-line bg-card p-3">
         <BehaviorMap dots={dots} labels={false} />
       </div>
-      <p className="mt-2 text-sm text-dim">
-        Neurons that act alike sit close together, so hot guesses tend to bunch up. The map is a squashed view: trust heat over distance.
-      </p>
+      <p className="mt-2 text-sm text-dim">Neurons that act alike sit close together, so hot guesses bunch up. The map squashes a lot, so trust heat over distance.</p>
     </div>
   );
 }
@@ -198,21 +157,15 @@ function Archive({ current }: { current: string }) {
   if (!past?.length) return null;
   return (
     <section>
-      <Label className="mb-2">Practice: past puzzles</Label>
-      <p className="mb-4 text-dim">Same scoring, no points and no streak. Mondays are easiest, weekends hardest.</p>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <Label>Past puzzles</Label>
+      <p className="mb-3 mt-1 text-dim">Practice on these. Same scoring, but no points and no streak. Mondays are easiest, weekends hardest.</p>
+      <div className="divide-y divide-line border-y border-line">
         {past.map((p) => (
-          <Link
-            key={p.date}
-            to={`/daily/${p.date}`}
-            className={`press flex items-center justify-between rounded-xl border px-4 py-3 hover:border-line-strong ${p.date === current ? "border-fg bg-card" : "border-line bg-card"}`}
-          >
-            <span>
-              <span className="font-pixel">#{p.number}</span>
-              <span className="ml-2 text-sm text-dim">{p.difficulty ?? ""}</span>
-            </span>
-            <span className="text-sm text-dim">
-              {p.mine ? (p.mine.solved ? `solved in ${p.mine.guesses}` : "missed") : p.players ? `${p.solvers}/${p.players} solved` : "unplayed"}
+          <Link key={p.date} to={`/daily/${p.date}`} className={`flex items-center gap-4 py-3 hover:bg-card ${p.date === current ? "bg-card" : ""}`}>
+            <span className="w-12 font-mono">#{p.number}</span>
+            <span className="w-20 text-sm text-dim">{p.difficulty ?? ""}</span>
+            <span className="ml-auto text-sm text-dim">
+              {p.mine ? (p.mine.solved ? `you solved it in ${p.mine.guesses}` : "you missed it") : p.players ? `${p.solvers} of ${p.players} solved` : "nobody played"}
             </span>
           </Link>
         ))}
@@ -234,11 +187,13 @@ export function Daily() {
   const [shaking, setShaking] = useState(false);
   const [showNormal, setShowNormal] = useState(false);
   const [resultOpen, setResultOpen] = useState(false);
+  const [example, setExample] = useState(false);
 
   useUnlock("heat", !!d?.guesses.some((g) => g.status === "done"));
 
-  // open the result card once, the first time a player sees this puzzle finished
   const finished = !!d?.result;
+
+  // open the result card once, the first time a player sees this puzzle finished
   useEffect(() => {
     if (!d || !finished) return;
     const key = `neuronaut:result:${d.date}`;
@@ -265,82 +220,92 @@ export function Daily() {
     }
   };
 
-  // The header and directions don't wait for the puzzle, so the page paints at once.
+  // The header doesn't wait for the puzzle, so the page paints at once.
   const header = (
-    <div className="space-y-5">
-      <div>
-        <h1 className="font-pixel text-4xl">
-          {date ? "PRACTICE" : "DAILY"}
-          {d ? ` #${d.number}` : ""}
-        </h1>
-        {/* always rendered, so the line's arrival doesn't push the page down */}
-        <div className="mt-1 h-6 text-dim">
-          {d ? [d.date, d.difficulty, `${d.solvers} of ${d.players} solved`, d.practice && "no points, no streak"].filter(Boolean).join(" · ") : "\u00a0"}
-        </div>
-      </div>
-      <Steps
-        steps={[
-          <>Read how the hidden neuron changed the model's answers.</>,
-          <>Search for words you see. That lists neurons likely to cause them.</>,
-          <>Guess. The hotter the bar, the closer you are.</>,
-        ]}
-      />
-    </div>
+    <h1 className="text-4xl font-bold tracking-tight">
+      {date ? "Practice" : "Daily"}
+      {d && <span className="text-rust"> #{d.number}</span>}
+    </h1>
   );
 
   if (d === undefined)
     return (
       <div className="space-y-8">
         {header}
-        <div className="py-10 text-center text-dim">Loading today's neuron…</div>
+        <p className="py-10 text-center text-dim">Loading today's neuron…</p>
       </div>
     );
   if (d === null)
     return (
       <div className="space-y-8">
         {header}
-        <div className="py-10 text-center text-dim">
-          Today's neuron is still being picked. Check back in a few minutes.
-        </div>
+        <p className="py-10 text-center text-dim">Today's neuron is still being picked. Check back in a few minutes.</p>
       </div>
     );
 
   const used = d.guesses.length;
   const latest = [...d.guesses].sort((a, b) => b.at - a.at)[0];
 
+  const hint = (value: string | null, at: number) =>
+    value ? <span className="pop font-mono">{value}</span> : <span className="text-dim">after {at - used} more</span>;
+
   return (
-    <div className="space-y-8">
-      {header}
-      <div className="grid gap-8 lg:grid-cols-[1fr_440px]">
+    <div className="space-y-12">
+      <Plate
+        no={String(d.number).padStart(3, "0")}
+        path={[date ? "practice" : "daily", d.date, d.difficulty, d.practice && "no points"].filter(Boolean).join(" / ")}
+        cells={[
+          { label: "Solved", value: `${d.solvers} of ${d.players}` },
+          { label: "Guesses", value: `${used} of ${d.limit}` },
+          { label: "Layer range", value: hint(d.band && `L${d.band[0]} to L${d.band[1]}`, d.hintsAt.band) },
+          { label: "A word it pushes", value: hint(d.hint, d.hintsAt.token) },
+        ]}
+      >
+        <div className="mb-8 space-y-3">
+          {header}
+          <p className="text-xl italic">One neuron was pushed while the model answered. Which one?</p>
+          <p className="max-w-[68ch] text-dim">
+            Read what it said, search for words that stand out, and guess. Heat tells you how close each guess is. You have{" "}
+            {d.limit} guesses.{" "}
+            <button className="text-fg underline underline-offset-4" onClick={() => setExample(true)}>
+              Watch a game
+            </button>
+          </p>
+        </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
         <section>
-          <div className="mb-3 flex items-center justify-between">
-            <Label>The clues</Label>
-            <button
-              className="text-sm font-medium text-dim underline underline-offset-4 hover:text-fg"
-              onClick={() => setShowNormal(!showNormal)}
-            >
+          <div className="mb-3 flex items-baseline justify-between gap-4">
+            <Label>What the model said</Label>
+            <button className="font-mono text-xs text-dim underline underline-offset-4 hover:text-fg" onClick={() => setShowNormal(!showNormal)}>
               {showNormal ? "Hide normal answers" : "Compare with normal answers"}
             </button>
           </div>
-          <div className="space-y-4">
+          <div className="divide-y divide-line rounded-[3px] border border-line-strong bg-card">
             {d.prompts.map((p, i) => (
-              <div key={i} className="rounded-2xl border border-line bg-card p-5">
-                <div className="text-[15px] font-semibold">{p}</div>
-                <div className="screen mt-3 text-fg">{d.texts[i] || "(silence)"}</div>
-                {showNormal && (
-                  <div className="mt-4 border-t border-line pt-3">
-                    <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-faint">Normal answer</div>
-                    <div className="screen text-dim">{d.baseline[i]}</div>
+              <div key={i} className="p-5">
+                <div className="font-semibold">{p}</div>
+                <div className={`mt-2 grid gap-5 ${showNormal ? "md:grid-cols-2" : ""}`}>
+                  <div>
+                    {showNormal && <div className="mb-1 font-mono text-[11px] uppercase tracking-wider text-dim">With the hidden neuron</div>}
+                    <Reply text={d.texts[i]} />
                   </div>
-                )}
+                  {showNormal && (
+                    <div>
+                      <div className="mb-1 font-mono text-[11px] uppercase tracking-wider text-dim">Normal</div>
+                      <Reply text={d.baseline[i]} className="text-dim" />
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
+          <p className="mt-2 text-sm italic text-dim">Replies stop after {REPLY_TOKENS} tokens, so most end mid-sentence.</p>
         </section>
 
-        <aside className="space-y-6 lg:sticky lg:top-20 lg:self-start">
+        <aside className="space-y-8 lg:sticky lg:top-20 lg:self-start">
           {finished ? (
-            <div className="pop rounded-2xl border-2 border-good bg-card p-5 text-center">
+            <Panel ascii={d.date} className="pop p-5">
               <div className="text-lg font-semibold">
                 {d.result!.solved ? `Solved in ${d.result!.guesses}` : "Out of guesses"}
               </div>
@@ -350,33 +315,77 @@ export function Daily() {
               <Button className="mt-4 w-full" onClick={() => setResultOpen(true)}>
                 See result and share
               </Button>
-            </div>
+            </Panel>
           ) : (
-            <form
-              className="rounded-2xl border border-line bg-card p-5"
-              onSubmit={(e) => {
-                e.preventDefault();
-                submit();
-              }}
-            >
-              <div className="flex items-baseline justify-between">
-                <Label>Your guess</Label>
-                <span className="font-mono text-sm tabular-nums text-dim">
-                  {used}/{d.limit}
-                </span>
-              </div>
-              <div
-                className={`mt-3 flex flex-wrap items-center gap-2 ${shaking ? "shake" : ""}`}
-                onAnimationEnd={() => setShaking(false)}
+            <Panel ascii={d.date} className="p-5">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submit();
+                }}
               >
-                <NeuronInput layer={layer} n={n} onLayer={setLayer} onN={setN} />
-                <Button className="flex-1">Guess</Button>
+                <div className="flex items-baseline justify-between">
+                  <Label>Your guess</Label>
+                  <span className="font-mono text-sm tabular-nums text-dim">
+                    {used}/{d.limit}
+                  </span>
+                </div>
+                <div className={`mt-3 flex flex-wrap items-end gap-2 ${shaking ? "shake" : ""}`} onAnimationEnd={() => setShaking(false)}>
+                  <NeuronInput layer={layer} n={n} onLayer={setLayer} onN={setN} />
+                  <Button className="min-w-24 flex-1">Guess</Button>
+                </div>
+                <div className="mt-2 min-h-5">
+                  <ErrorLine error={error} />
+                </div>
+                <ChartLegend className="mt-1 border-b border-line-strong pb-2" />
+                <HeatChart
+                  className="mt-2"
+                  slots={d.limit}
+                  marks={[...d.guesses].sort((a, b) => a.at - b.at).map((g) => (g.status === "done" && g.heat !== null ? { heat: g.heat, correct: g.correct } : null))}
+                />
+              </form>
+            </Panel>
+          )}
+
+          {used > 0 && (
+            <div>
+              <Label className="mb-2">Guesses, hottest first</Label>
+              <div className="divide-y divide-line border-y border-fg" aria-live="polite">
+                {d.guesses.map((g) => {
+                  const k = `${g.layer}:${g.n}`;
+                  return (
+                    <div key={k} data-guess className={g === latest ? "bg-card" : ""}>
+                      <button
+                        type="button"
+                        onClick={() => setOpen(open === k ? null : k)}
+                        aria-expanded={open === k}
+                        className="grid w-full grid-cols-[4.75rem_1fr_2rem_3.5rem] items-center gap-2 px-2 py-2.5 text-left hover:bg-card sm:gap-3"
+                      >
+                        <span className="font-mono text-sm">{dexNo(g.layer, g.n)}</span>
+                        {g.status === "pending" ? <span className="text-sm text-faint">measuring…</span> : <HeatBar heat={g.heat} correct={g.correct} />}
+                        <span className="text-right font-mono font-medium tabular-nums">{g.status === "pending" ? "" : g.correct ? "hit" : g.heat}</span>
+                        <span className="text-right font-mono text-sm tabular-nums text-dim">
+                          {g.status === "pending" || g.rank === null || g.correct ? "" : rankText(g.rank)}
+                        </span>
+                      </button>
+                      {open === k && g.status === "done" && (
+                        <div className="px-2 pb-3 text-sm text-dim">
+                          {g.correct ? (
+                            "Its effect matches the answer's."
+                          ) : (
+                            <>
+                              Cosine <span className="font-mono text-fg">{g.cos?.toFixed(3) ?? "?"}</span> to the answer.{" "}
+                              {g.rank !== null && `${g.rank > LADDER_EXACT ? "About " : ""}${(g.rank - 1).toLocaleString()} neurons act more like it.`}{" "}
+                            </>
+                          )}
+                          <NeuronLink layer={g.layer} n={g.n} className="ml-1" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <div className="mt-2 min-h-5">
-                <ErrorLine error={error} />
-              </div>
-              <Slots d={d} />
-            </form>
+            </div>
           )}
 
           {!finished && (
@@ -393,69 +402,12 @@ export function Daily() {
               />
             </div>
           )}
-          {used > 0 && (
-            <div>
-              <Label className="mb-2">Guesses, hottest first</Label>
-              <div className="space-y-1.5">
-                {d.guesses.map((g) => {
-                  const k = `${g.layer}:${g.n}`;
-                  return (
-                    <div key={k} data-guess className={`rounded-xl bg-card ${g === latest ? "ring-2 ring-fg" : ""}`}>
-                      <button
-                        type="button"
-                        onClick={() => setOpen(open === k ? null : k)}
-                        aria-expanded={open === k}
-                        className="grid w-full grid-cols-[5.5rem_1fr_3rem_4rem] items-center gap-3 px-3 py-2.5 text-left"
-                      >
-                        <span className="font-pixel text-sm">{dexNo(g.layer, g.n)}</span>
-                        {g.status === "pending" ? (
-                          <span className="text-sm text-faint">measuring…</span>
-                        ) : (
-                          <HeatBar heat={g.heat} correct={g.correct} />
-                        )}
-                        <span className="text-right font-mono font-semibold tabular-nums">
-                          {g.status === "pending" ? "" : g.correct ? "hit" : g.heat}
-                        </span>
-                        <span className="text-right font-mono text-sm tabular-nums text-dim">
-                          {g.status === "pending" || g.rank === null ? "" : g.correct ? "" : rankText(g.rank)}
-                        </span>
-                      </button>
-                      {open === k && g.status === "done" && (
-                        <div className="border-t border-line px-3 py-2.5 text-sm text-dim">
-                          {g.correct ? (
-                            "Its effect matches the answer's."
-                          ) : (
-                            <>
-                              Behavior cosine <span className="font-mono text-fg">{g.cos?.toFixed(3) ?? "?"}</span> to the answer.{" "}
-                              {g.rank !== null && `${g.rank > LADDER_EXACT ? "About " : ""}${(g.rank - 1).toLocaleString()} act more like the answer.`}{" "}
-                            </>
-                          )}
-                          <NeuronLink layer={g.layer} n={g.n} className="ml-1" /> <span className="text-faint">open card</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {d.guesses.some((g) => g.place) && <GuessMap d={d} />}
 
-          {!finished && (
-            <div className="space-y-2">
-              <Label>Hints</Label>
-              <Hint
-                label="Layer range"
-                value={d.band ? `L${d.band[0]} to L${d.band[1]}` : null}
-                unlockAt={d.hintsAt.band}
-                used={used}
-              />
-              <Hint label="A word it pushes" value={d.hint} unlockAt={d.hintsAt.token} used={used} />
-            </div>
-          )}
         </aside>
       </div>
+      </Plate>
 
       {finished && d.answer && <WhyHeat d={d} pick={pick} onPick={setPick} />}
       <Archive current={d.date} />
@@ -463,6 +415,7 @@ export function Daily() {
       <Modal open={resultOpen} onClose={() => setResultOpen(false)} label="Today's result">
         <ResultCard d={d} onClose={() => setResultOpen(false)} />
       </Modal>
+      <HowToPlay open={example} onClose={() => setExample(false)} />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { defineConfig, type Plugin } from "vite";
 
 // The fonts on screen at first paint. Without a preload they're only requested once React renders text, and swapping
 // them in after the fallback font rewraps the page (a 0.7 layout shift on /daily).
-const PRELOAD = [/geist-sans-latin-(400|600)-normal-.*\.woff2$/, /geist-mono-latin-400-normal-.*\.woff2$/, /silkscreen-latin-400-normal-.*\.woff2$/];
+const PRELOAD = [/source-serif-4-latin-(400|700)-normal-.*\.woff2$/, /geist-mono-latin-(400|500)-normal-.*\.woff2$/];
 
 function preloadFonts(): Plugin {
   return {

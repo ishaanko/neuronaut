@@ -12,23 +12,23 @@ export function Notes() {
   return (
     <div className="mx-auto max-w-[720px] space-y-8">
       <div>
-        <h1 className="font-pixel text-4xl">FIELD NOTES</h1>
-        <div className="mt-1 text-dim">
-          {seen.length} of {NOTES.length} found. Each one unlocks the first time the game shows it to you.
-        </div>
+        <h1 className="text-4xl font-bold tracking-tight">Field notes<span className="text-rust">.</span></h1>
+        <p className="mt-1 text-dim">
+          {seen.length} of {NOTES.length} found. Each one unlocks the first time you see it happen in the game.
+        </p>
       </div>
-      <div className="space-y-4">
+      <div className="divide-y divide-line border-y border-line">
         {NOTES.map((note) => {
           const open = seen.includes(note.id);
           return (
             <article
               key={note.id}
               id={note.id}
-              className={`scroll-mt-24 rounded-2xl p-6 ${open ? "border border-line bg-card" : "border-2 border-dashed border-line-strong"}`}
+              className="scroll-mt-24 py-6"
             >
-              <h2 className={`text-xl font-semibold ${open ? "" : "text-faint"}`}>{open ? note.title : "Not found yet"}</h2>
+              <h2 className={`text-xl font-semibold ${open ? "" : "text-dim"}`}>{open ? note.title : "Not found yet"}</h2>
               {open ? (
-                <div className="mt-3 space-y-3 text-[17px] leading-relaxed">
+                <div className="mt-3 space-y-3 text-[16px] leading-relaxed">
                   {note.body.map((p, i) => (
                     <p key={i}>{p}</p>
                   ))}

@@ -4,13 +4,12 @@ import { ConvexReactClient } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { StrictMode, Suspense, lazy, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
 import "./index.css";
 import { api } from "../convex/_generated/api";
 import { Nav } from "./components/Nav";
 import { NotesProvider } from "./lib/notes";
 import { SessionProvider } from "./lib/session";
-import { useIsDark } from "./lib/theme";
 import { Daily } from "./pages/Daily";
 import { Home } from "./pages/Home";
 
@@ -40,29 +39,19 @@ const PREWARM = {
 for (const query of PREWARM[location.pathname as keyof typeof PREWARM] ?? [])
   convex.prewarmQuery({ query, args: {}, extendSubscriptionFor: 10_000 });
 
-// Clerk's sign-in modal in the site's colors, following the theme.
+// Clerk's sign-in modal in the site's colors.
 function Clerk({ children }: { children: ReactNode }) {
-  const dark = useIsDark();
   const appearance = {
-    variables: dark
-      ? {
-          colorBackground: "#0a0a0a",
-          colorText: "#fff",
-          colorPrimary: "#fff",
-          colorTextOnPrimaryBackground: "#000",
-          colorInputBackground: "#000",
-          colorInputText: "#fff",
-          borderRadius: "0.75rem",
-        }
-      : {
-          colorBackground: "#fff",
-          colorText: "#16130f",
-          colorPrimary: "#16130f",
-          colorTextOnPrimaryBackground: "#fff",
-          colorInputBackground: "#fff",
-          colorInputText: "#16130f",
-          borderRadius: "0.75rem",
-        },
+    variables: {
+      colorBackground: "#f4f0e6",
+      colorText: "#1b1814",
+      colorPrimary: "#1b1814",
+      colorTextOnPrimaryBackground: "#f4f0e6",
+      colorInputBackground: "#ece7dc",
+      colorInputText: "#1b1814",
+      fontFamily: '"Source Serif 4", Georgia, serif',
+      borderRadius: "3px",
+    },
   };
   return (
     <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY} appearance={appearance}>
@@ -80,14 +69,14 @@ createRoot(document.getElementById("root")!).render(
             <NotesProvider>
               <Nav />
               <main className="mx-auto min-h-[calc(100svh-3.5rem)] max-w-[1120px] px-4 py-8 sm:px-6 sm:py-10">
-                <Suspense fallback={<div className="py-20 text-center text-dim">Loading…</div>}>
+                <Suspense fallback={<p className="py-20 text-center text-dim">Loading…</p>}>
                   <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/daily" element={<Daily />} />
                     <Route path="/daily/:date" element={<Daily />} />
                     <Route path="/map" element={<MapPage />} />
                     <Route path="/notes" element={<Notes />} />
-                  <Route path="/lab" element={<Lab />} />
+                    <Route path="/lab" element={<Lab />} />
                     <Route path="/dex" element={<Dex />} />
                     <Route path="/n/:layer/:n" element={<Neuron />} />
                     <Route path="/bounties" element={<Bounties />} />
@@ -95,19 +84,21 @@ createRoot(document.getElementById("root")!).render(
                     <Route path="/trainers" element={<Trainers />} />
                     <Route path="/t/:handle" element={<Trainer />} />
                     <Route path="/how" element={<How />} />
-                    <Route path="*" element={<div className="py-20 text-center text-dim">Nothing here.</div>} />
+                    <Route path="*" element={<p className="py-20 text-center text-dim">Nothing here.</p>} />
                   </Routes>
                 </Suspense>
               </main>
-              <footer className="mx-auto max-w-[1120px] border-t border-line px-4 py-6 text-sm text-dim sm:px-6">
-                Built on{" "}
-                <a
-                  href="https://github.com/lyramakesmusic/neuron-explorer"
-                  className="font-medium text-fg underline underline-offset-4"
-                >
-                  neuron-explorer
-                </a>{" "}
-                by lyramakesmusic.
+              <footer className="mx-auto flex max-w-[1120px] flex-wrap gap-x-6 gap-y-2 border-t border-line px-4 py-6 text-sm text-dim sm:px-6">
+                <span>
+                  Built on{" "}
+                  <a href="https://github.com/lyramakesmusic/neuron-explorer" className="text-fg underline underline-offset-4">
+                    neuron-explorer
+                  </a>{" "}
+                  by lyramakesmusic
+                </span>
+                <Link to="/how" className="hover:text-fg">
+                  Rules and scoring
+                </Link>
               </footer>
               <Analytics />
             </NotesProvider>

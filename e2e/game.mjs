@@ -87,7 +87,7 @@ try {
 
   await step("lens search", async () => {
     await page.goto(url + "/dex");
-    await page.getByPlaceholder(/search lenses/).fill("ocean");
+    await page.getByLabel("search lenses").fill("ocean");
     await page.getByRole("button", { name: "open" }).first().waitFor({ timeout: 15000 });
     return { results: await page.getByRole("button", { name: "open" }).count() };
   });
@@ -115,7 +115,7 @@ try {
 
   await step("daily: wrong guesses get heat", async () => {
     await page.goto(url + "/daily");
-    await page.getByRole("heading", { name: /DAILY #\d+/ }).waitFor({ timeout: 30000 });
+    await page.getByRole("heading", { name: /Daily #\d+/ }).waitFor({ timeout: 30000 });
     for (const [l, n] of [[5, 100], [17, 4242]]) {
       await page.getByLabel("layer", { exact: true }).fill(String(l));
       await page.getByLabel("neuron", { exact: true }).fill(String(n));
@@ -144,7 +144,7 @@ try {
     if (!ans) throw new Error(`no puzzle on ${yesterday}`);
     const before = await page.getByTitle("Your points").innerText();
     await page.goto(url + `/daily/${yesterday}`);
-    await page.getByRole("heading", { name: /PRACTICE #\d+/ }).waitFor({ timeout: 30000 });
+    await page.getByRole("heading", { name: /Practice #\d+/ }).waitFor({ timeout: 30000 });
     await page.getByLabel("layer", { exact: true }).fill(String(ans.layer));
     await page.getByLabel("neuron", { exact: true }).fill(String(ans.n));
     await page.getByRole("button", { name: "Guess", exact: true }).click();
