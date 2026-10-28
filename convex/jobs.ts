@@ -23,11 +23,10 @@ export async function enqueue(
     .withIndex("by_key", (q) => q.eq("key", key))
     .filter((q) => q.or(q.eq(q.field("status"), "pending"), q.eq(q.field("status"), "running")))
     .first();
-  if (open) {
-    // someone more urgent now waits on it too (a player on a guest's job, say): move it up to them
-    if (open.status === "pending" && priority < open.priority) await ctx.db.patch(open._id, { priority });
-    return open._id;
-  }
+  // Someone more urgent waiting on an open job (a player on a guest's job, say) moves it up to them, as if they had
+  // queued it: it counts against their budget and the queue at the new priority.
+  const promote = open?.status === "pending" && priority < open.priority;
+  if (open && !promote) return open._id;
   if (by) {
     const mine = async (status: "pending" | "running") =>
       (await ctx.db.query("jobs").withIndex("by_by_status", (q) => q.eq("by", by).eq("status", status)).take(GPU.perPlayer)).length;
@@ -39,6 +38,10 @@ export async function enqueue(
       .withIndex("by_status_priority", (q) => q.eq("status", "pending").eq("priority", priority))
       .take(cap);
     if (waiting.length >= cap) throw new ConvexError("The GPU is busy right now. Try again in a minute.");
+  }
+  if (open) {
+    await ctx.db.patch(open._id, { priority, by });
+    return open._id;
   }
   return await ctx.db.insert("jobs", { kind, key, args, priority, status: "pending", by });
 }
