@@ -1,4 +1,5 @@
 import { ClerkProvider, useAuth } from "@clerk/react";
+import { Analytics } from "@vercel/analytics/react";
 import { ConvexReactClient } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { StrictMode, Suspense, lazy, type ReactNode } from "react";
@@ -108,6 +109,7 @@ createRoot(document.getElementById("root")!).render(
                 </a>{" "}
                 by lyramakesmusic.
               </footer>
+              <Analytics />
             </NotesProvider>
           </SessionProvider>
         </BrowserRouter>
