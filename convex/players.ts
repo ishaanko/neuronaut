@@ -57,9 +57,8 @@ export const leaderboard = query({
   handler: async (ctx) => {
     const top = await ctx.db
       .query("players")
-      .withIndex("by_points")
+      .withIndex("by_guest_points", (q) => q.eq("guest", undefined))
       .order("desc")
-      .filter((q) => q.neq(q.field("guest"), true))
       .take(100);
     return top.map((p) => ({
       handle: p.handle,

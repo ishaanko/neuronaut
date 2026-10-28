@@ -81,7 +81,7 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_handle", ["handleLower"])
-    .index("by_points", ["points"]),
+    .index("by_guest_points", ["guest", "points"]), // accounts (guest unset) by points, without reading guest rows
 
   // A player looking at a neuron's card. source "scan" spends a daily scan; "guess" comes free with a daily guess.
   scans: defineTable({
