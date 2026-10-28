@@ -341,7 +341,7 @@ export function Daily() {
                 <HeatChart
                   className="mt-2"
                   slots={d.limit}
-                  marks={[...d.guesses].sort((a, b) => a.at - b.at).flatMap((g) => (g.status === "done" && g.heat !== null ? [{ heat: g.heat, correct: g.correct }] : []))}
+                  marks={[...d.guesses].sort((a, b) => a.at - b.at).map((g) => (g.status === "done" && g.heat !== null ? { heat: g.heat, correct: g.correct } : null))}
                 />
               </form>
             </Panel>

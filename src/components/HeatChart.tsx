@@ -49,13 +49,15 @@ export function ChartLegend({ className = "" }: { className?: string }) {
   );
 }
 
-// Each guess's heat in the order made, plotted over a ruler with one tick per guess allowed. Static: it redraws when a
-// guess lands, nothing animates.
-export function HeatChart({ marks, slots, className = "" }: { marks: ChartMark[]; slots: number; className?: string }) {
+// Each guess's heat in the order made, plotted over a ruler with one tick per guess allowed. A null mark is a guess still
+// being scored: it keeps its slot and draws nothing, so later guesses don't shift when it lands. Static: it redraws when
+// a guess lands, nothing animates.
+export function HeatChart({ marks, slots, className = "" }: { marks: (ChartMark | null)[]; slots: number; className?: string }) {
   const x = (i: number) => LEFT + (i * (W - LEFT - RIGHT)) / Math.max(1, slots - 1);
   const y = (m: ChartMark) => BASE - ((m.correct ? 99 : m.heat) / 99) * (BASE - TOP);
-  const pts = marks.map((m, i) => [x(i), y(m)] as [number, number]);
-  const label = marks.length ? `Heat of each guess: ${marks.map((m) => (m.correct ? "hit" : m.heat)).join(", ")}` : "No guesses yet";
+  const plotted = marks.flatMap((m, i) => (m ? [{ m, px: x(i), py: y(m) }] : []));
+  const pts = plotted.map(({ px, py }) => [px, py] as [number, number]);
+  const label = marks.length ? `Heat of each guess: ${marks.map((m) => (!m ? "scoring" : m.correct ? "hit" : m.heat)).join(", ")}` : "No guesses yet";
   return (
     <svg viewBox={`0 0 ${W} 138`} className={`w-full ${className}`} role="img" aria-label={label}>
       <text x={0} y={TOP + 5} className="fill-dim font-mono text-[13px]">99</text>
@@ -77,8 +79,8 @@ export function HeatChart({ marks, slots, className = "" }: { marks: ChartMark[]
         ) : null,
       )}
       <path d={curve(pts)} fill="none" className="stroke-fg" strokeWidth={1.6} />
-      {marks.map((m, i) => (
-        <Marker key={i} x={pts[i][0]} y={pts[i][1]} m={m} />
+      {plotted.map(({ m, px, py }) => (
+        <Marker key={px} x={px} y={py} m={m} />
       ))}
     </svg>
   );
