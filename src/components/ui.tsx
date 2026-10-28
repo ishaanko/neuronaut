@@ -53,7 +53,7 @@ export function NeuronLink({ layer, n, className = "" }: { layer: number; n: num
 export function RarityTag({ rarity, className = "" }: { rarity: Rarity; className?: string }) {
   const marks = RARITY_MARKS[rarity];
   return (
-    <span className={`inline-flex items-center gap-1.5 font-pixel text-xs uppercase tracking-wide ${RARITY_COLOR[rarity]} ${className}`}>
+    <span className={`inline-flex shrink-0 items-center gap-1.5 font-pixel text-xs whitespace-nowrap uppercase tracking-wide ${RARITY_COLOR[rarity]} ${className}`}>
       <span className="inline-flex gap-[2px]">
         {Array.from({ length: Math.max(1, marks) }, (_, i) => (
           <span key={i} className={`pixel-mark ${marks === 0 ? "opacity-40" : ""}`} />
@@ -76,6 +76,16 @@ export function HeatBar({ heat, correct = false }: { heat: number | null; correc
 
 export function Label({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`text-xs font-semibold uppercase tracking-[0.08em] text-dim ${className}`}>{children}</div>;
+}
+
+// Wide content scrolls inside the page. The region is a tab stop so a keyboard can reach columns that are not links;
+// that's an extra stop on desktop too, where nothing overflows.
+export function ScrollX({ label, className = "", children }: { label: string; className?: string; children: ReactNode }) {
+  return (
+    <div role="region" aria-label={label} tabIndex={0} className={`max-w-full overflow-x-auto overscroll-x-contain ${className}`}>
+      {children}
+    </div>
+  );
 }
 
 export function Tokens({ tokens, className = "" }: { tokens: string[]; className?: string }) {

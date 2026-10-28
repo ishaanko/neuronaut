@@ -184,19 +184,21 @@ export function Bounty() {
             </div>
             <div className="mt-2 space-y-2">
               {rows.map((r, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="flex flex-wrap items-center gap-2">
                   <NeuronInput layer={r.layer} n={r.n} onLayer={(v) => setRow(i, { layer: v })} onN={(v) => setRow(i, { n: v })} />
-                  <span className="font-mono text-faint">×</span>
-                  <Input value={r.dose} onChange={(e) => setRow(i, { dose: e.target.value })} className="w-20 text-center font-mono" inputMode="decimal" aria-label="dose" />
-                  {rows.length > 1 && (
-                    <button type="button" className="font-mono text-xs text-faint hover:text-fg" onClick={() => setRows(rows.filter((_, j) => j !== i))}>
-                      remove
-                    </button>
-                  )}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="font-mono text-faint">×</span>
+                    <Input value={r.dose} onChange={(e) => setRow(i, { dose: e.target.value })} className="w-20 shrink-0 text-center font-mono" inputMode="decimal" aria-label="dose" />
+                    {rows.length > 1 && (
+                      <button type="button" className="shrink-0 font-mono text-xs whitespace-nowrap text-faint hover:text-fg" onClick={() => setRows(rows.filter((_, j) => j !== i))}>
+                        remove
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex items-center gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button disabled={b.entriesLeft <= 0}>Submit</Button>
               {rows.length < b.maxNeurons && (
                 <Button type="button" variant="ghost" onClick={() => setRows([...rows, { layer: "", n: "", dose: "0.5" }])}>

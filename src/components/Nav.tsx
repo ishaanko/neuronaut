@@ -16,7 +16,7 @@ const LINKS = [
 
 function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button aria-label={label} title={label} onClick={onClick} className="press flex h-10 w-10 items-center justify-center rounded-full text-dim hover:bg-raised hover:text-fg">
+    <button aria-label={label} title={label} onClick={onClick} className="press flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-dim hover:bg-raised hover:text-fg">
       {children}
     </button>
   );
@@ -33,9 +33,11 @@ export function Nav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bg/95 backdrop-blur-sm">
-      {/* phones: logo and controls on one row, the links on a second row that scrolls sideways */}
-      <div className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-x-6 px-4 sm:px-6">
-        <Link to="/" className="flex h-14 items-center font-pixel text-lg tracking-wide">
+      {/* phones: logo and controls on one row, the links on a second row that scrolls sideways. With a handle, the
+          controls ask for 13rem (room for about 3rem of handle) and the handle truncates; without one they ask for their
+          content width. Either way they wrap to their own row when that doesn't fit beside the logo. */}
+      <div className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-x-4 px-4 sm:px-6 md:gap-x-6">
+        <Link to="/" className="flex h-14 shrink-0 items-center font-pixel text-lg tracking-wide">
           NEURONAUT
         </Link>
         <nav className="order-last -mx-4 flex w-[calc(100%+2rem)] items-center gap-1 overflow-x-auto whitespace-nowrap px-3 pb-2 md:order-none md:mx-0 md:w-auto md:p-0">
@@ -49,7 +51,7 @@ export function Nav() {
             </NavLink>
           ))}
         </nav>
-        <div className="ml-auto flex h-14 items-center gap-1">
+        <div className={`flex h-14 min-w-0 flex-1 items-center justify-end gap-1 ${me ? "basis-52" : "basis-auto"}`}>
           <IconButton label="How to play" onClick={() => setHelp(true)}>
             <span className="text-lg font-semibold">?</span>
           </IconButton>
@@ -66,28 +68,28 @@ export function Nav() {
             )}
           </IconButton>
           {me ? (
-            <div className="ml-2 flex items-center gap-3 text-sm">
-              <span className="hidden rounded-lg bg-raised px-2.5 py-1 font-mono tabular-nums sm:inline" title="Your points">
+            <div className="ml-2 flex min-w-0 items-center gap-3 text-sm">
+              <span className="hidden shrink-0 rounded-lg bg-raised px-2.5 py-1 font-mono tabular-nums sm:inline" title="Your points">
                 {me.points} pts
               </span>
-              <Link to={`/t/${me.handle}`} className="font-semibold hover:underline underline-offset-4">
+              <Link to={`/t/${me.handle}`} title={me.handle} className="min-w-0 truncate font-semibold hover:underline underline-offset-4">
                 {me.handle}
               </Link>
-              <button className="text-dim hover:text-fg" onClick={signOut}>
+              <button className="shrink-0 whitespace-nowrap text-dim hover:text-fg" onClick={signOut}>
                 Sign out
               </button>
             </div>
           ) : signedIn ? (
-            <div className="ml-2 flex items-center gap-3 text-sm">
+            <div className="ml-2 flex shrink-0 items-center gap-3 text-sm">
               <button className="press h-10 rounded-xl bg-accent px-4 font-semibold text-accent-fg" onClick={() => requireJoin()}>
                 Pick a handle
               </button>
-              <button className="text-dim hover:text-fg" onClick={signOut}>
+              <button className="shrink-0 whitespace-nowrap text-dim hover:text-fg" onClick={signOut}>
                 Sign out
               </button>
             </div>
           ) : (
-            <button className="press ml-2 h-10 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg" onClick={signIn}>
+            <button className="press ml-2 h-10 shrink-0 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg" onClick={signIn}>
               Sign in
             </button>
           )}

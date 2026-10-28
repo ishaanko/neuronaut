@@ -1,7 +1,7 @@
 import { useQuery } from "convex/react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
-import { Label, NeuronLink, RarityTag, Stat } from "../components/ui";
+import { Label, NeuronLink, RarityTag, ScrollX, Stat } from "../components/ui";
 
 export function Trainers() {
   const top = useQuery(api.players.leaderboard);
@@ -13,29 +13,31 @@ export function Trainers() {
       ) : top.length === 0 ? (
         <div className="py-6 text-dim">Nobody yet. Be first.</div>
       ) : (
-        <table className="mt-6 w-full text-left font-mono text-xs">
-          <thead>
-            <tr>
-              {["#", "trainer", "points", "caught", "dailies", "streak", "best", "bounty wins"].map((h, i) => (
-                <th key={h} className={`pb-2 font-normal ${i > 1 ? "text-right" : ""}`}><Label className="text-faint">{h}</Label></th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {top.map((p, i) => (
-              <tr key={p.handle} className="border-t border-line">
-                <td className="w-8 py-2 text-faint">{i + 1}</td>
-                <td className="py-2"><Link to={`/t/${p.handle}`} className="text-fg hover:underline underline-offset-4">{p.handle}</Link></td>
-                <td className="py-2 text-right text-fg">{p.points}</td>
-                <td className="py-2 text-right">{p.caught}</td>
-                <td className="py-2 text-right">{p.dailySolved}</td>
-                <td className="py-2 text-right">{p.streak}</td>
-                <td className="py-2 text-right">{p.bestStreak}</td>
-                <td className="py-2 text-right">{p.bountyWins}</td>
+        <ScrollX label="Trainer leaderboard" className="mt-6">
+          <table className="w-max min-w-full whitespace-nowrap text-left [&_td+td]:pl-4 [&_th+th]:pl-4 font-mono text-xs">
+            <thead>
+              <tr>
+                {["#", "trainer", "points", "caught", "dailies", "streak", "best", "bounty wins"].map((h, i) => (
+                  <th key={h} className={`pb-2 font-normal ${i > 1 ? "text-right" : ""}`}><Label className="text-faint">{h}</Label></th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {top.map((p, i) => (
+                <tr key={p.handle} className="border-t border-line">
+                  <td className="w-8 py-2 text-faint">{i + 1}</td>
+                  <td className="py-2"><Link to={`/t/${p.handle}`} className="text-fg hover:underline underline-offset-4">{p.handle}</Link></td>
+                  <td className="py-2 text-right text-fg">{p.points}</td>
+                  <td className="py-2 text-right">{p.caught}</td>
+                  <td className="py-2 text-right">{p.dailySolved}</td>
+                  <td className="py-2 text-right">{p.streak}</td>
+                  <td className="py-2 text-right">{p.bestStreak}</td>
+                  <td className="py-2 text-right">{p.bountyWins}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ScrollX>
       )}
     </div>
   );
@@ -66,19 +68,21 @@ export function Trainer() {
         {p.catches.length === 0 ? (
           <div className="text-dim">No catches yet.</div>
         ) : (
-          <table className="w-full text-left">
-            <tbody>
-              {p.catches.map((c) => (
-                <tr key={`${c.layer}:${c.n}`} className="border-t border-line align-baseline">
-                  <td className="w-28 py-2"><NeuronLink layer={c.layer} n={c.n} /></td>
-                  <td className="py-2 font-medium">{c.name}</td>
-                  <td className="w-32 py-2"><RarityTag rarity={c.rarity} /></td>
-                  <td className="w-16 py-2 text-right font-mono text-xs">{c.points}</td>
-                  <td className="w-24 py-2 text-right font-mono text-xs text-faint">{c.date}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ScrollX label={`${p.handle}'s dex`}>
+            <table className="w-max min-w-full whitespace-nowrap text-left [&_td+td]:pl-4 [&_th+th]:pl-4">
+              <tbody>
+                {p.catches.map((c) => (
+                  <tr key={`${c.layer}:${c.n}`} className="border-t border-line align-baseline">
+                    <td className="py-2"><NeuronLink layer={c.layer} n={c.n} /></td>
+                    <td className="py-2 font-medium">{c.name}</td>
+                    <td className="py-2"><RarityTag rarity={c.rarity} /></td>
+                    <td className="py-2 text-right font-mono text-xs">{c.points}</td>
+                    <td className="py-2 text-right font-mono text-xs text-faint">{c.date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollX>
         )}
       </div>
     </div>
