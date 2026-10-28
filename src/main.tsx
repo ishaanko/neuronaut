@@ -24,6 +24,7 @@ const How = lazy(() => import("./pages/How").then((m) => ({ default: m.How })));
 const MapPage = lazy(() => import("./pages/Map").then((m) => ({ default: m.MapPage })));
 const Notes = lazy(() => import("./pages/Notes").then((m) => ({ default: m.Notes })));
 const Lab = lazy(() => import("./pages/Lab").then((m) => ({ default: m.Lab })));
+const About = lazy(() => import("./pages/About").then((m) => ({ default: m.About })));
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
@@ -84,6 +85,7 @@ createRoot(document.getElementById("root")!).render(
                     <Route path="/trainers" element={<Trainers />} />
                     <Route path="/t/:handle" element={<Trainer />} />
                     <Route path="/how" element={<How />} />
+                    <Route path="/about" element={<About />} />
                     <Route path="*" element={<p className="py-20 text-center text-dim">Nothing here.</p>} />
                   </Routes>
                 </Suspense>
