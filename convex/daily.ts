@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
-import { enqueue } from "./jobs";
+import { enqueue, GUEST_PRIORITY } from "./jobs";
 import { placeOf } from "./map";
 import {
   HINTS,
@@ -221,7 +221,7 @@ export const guess = mutation({
       await ctx.db.insert("scans", { playerId: player._id, key, layer, n, date, source: "guess" });
     const prof = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", key)).unique();
     if (prof) await resolve(ctx, (await ctx.db.get(id))!, prof.embedding, daily);
-    else await enqueue(ctx, "profile", `profile:${key}`, { layer, n }, 0, player._id);
+    else await enqueue(ctx, "profile", `profile:${key}`, { layer, n }, player.guest ? GUEST_PRIORITY : 0, player._id);
   },
 });
 

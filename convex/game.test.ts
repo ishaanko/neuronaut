@@ -112,6 +112,15 @@ describe("GPU budget", () => {
     await expect(bob.mutation(api.neurons.scan, { layer: 2, n: 2 })).rejects.toThrow("GPU is busy");
   });
 
+  test("guests minting fresh tokens fill only the guests' queue, never the one players with accounts use", async () => {
+    const { t, player } = await setup();
+    await withDaily(t);
+    for (let i = 0; i < GPU.guests; i++) await t.mutation(api.daily.guess, { layer: 1, n: i, guest: `guest-token-${i}`.padEnd(16, "x") });
+    await expect(t.mutation(api.daily.guess, { layer: 2, n: 0, guest: "one-more-guest-token" })).rejects.toThrow("GPU is busy");
+    const bob = await player("bob");
+    await expect(bob.mutation(api.neurons.scan, { layer: 2, n: 2 })).resolves.toMatchObject({ layer: 2, n: 2 });
+  });
+
   test("a scan of an already measured neuron is never refused", async () => {
     const { t, player, putProfiles } = await setup();
     await putProfiles([profile(3, 3, axis(3))]);

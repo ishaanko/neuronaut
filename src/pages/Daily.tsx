@@ -76,7 +76,14 @@ function ResultCard({ d, onClose }: { d: Daily; onClose: () => void }) {
       {!signedIn && (
         <div className="mt-4 flex items-center justify-between gap-4">
           <p className="text-dim">Make an account to keep this result, start a streak and get on the leaderboard.</p>
-          <Button variant="ghost" className="shrink-0" onClick={signUp}>
+          <Button
+            variant="ghost"
+            className="shrink-0"
+            onClick={() => {
+              onClose();
+              signUp();
+            }}
+          >
             Make an account
           </Button>
         </div>
@@ -452,7 +459,8 @@ export function Daily() {
       {finished && d.answer && <WhyHeat d={d} pick={pick} onPick={setPick} />}
       <Archive current={d.date} />
 
-      <Modal open={resultOpen} onClose={() => setResultOpen(false)} label="Today's result">
+      {/* a guest who signs up from the card has no result until they pick a handle */}
+      <Modal open={resultOpen && finished} onClose={() => setResultOpen(false)} label="Today's result">
         <ResultCard d={d} onClose={() => setResultOpen(false)} />
       </Modal>
       <HowToPlay open={example} onClose={() => setExample(false)} />

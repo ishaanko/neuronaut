@@ -4,11 +4,12 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { GPU, MODEL } from "./lib";
 
 export const COVERAGE_BINS = 96;
+export const GUEST_PRIORITY = 0.5; // a guest is waiting: after players (0), before background work (1)
 
 // Queues GPU work unless the same key is already pending or running. priority 0 means a player is waiting on it.
 // `by` is the player asking. New work for them is refused once they have GPU.perPlayer jobs waiting, or once GPU.queue
-// players' jobs are waiting in total, so nobody can flood the one GPU. The throw rolls back the caller's mutation, so a
-// refused scan, guess or entry isn't used up.
+// players' jobs are waiting in total (GPU.guests at GUEST_PRIORITY), so nobody can flood the one GPU. The throw rolls
+// back the caller's mutation, so a refused scan, guess or entry isn't used up.
 export async function enqueue(
   ctx: MutationCtx,
   kind: Doc<"jobs">["kind"],
@@ -28,11 +29,12 @@ export async function enqueue(
       (await ctx.db.query("jobs").withIndex("by_by_status", (q) => q.eq("by", by).eq("status", status)).take(GPU.perPlayer)).length;
     if ((await mine("pending")) + (await mine("running")) >= GPU.perPlayer)
       throw new ConvexError("You already have a few things waiting on the GPU. Give them a moment.");
+    const cap = priority === GUEST_PRIORITY ? GPU.guests : GPU.queue;
     const waiting = await ctx.db
       .query("jobs")
-      .withIndex("by_status_priority", (q) => q.eq("status", "pending").eq("priority", 0))
-      .take(GPU.queue);
-    if (waiting.length >= GPU.queue) throw new ConvexError("The GPU is busy right now. Try again in a minute.");
+      .withIndex("by_status_priority", (q) => q.eq("status", "pending").eq("priority", priority))
+      .take(cap);
+    if (waiting.length >= cap) throw new ConvexError("The GPU is busy right now. Try again in a minute.");
   }
   return await ctx.db.insert("jobs", { kind, key, args, priority, status: "pending", by });
 }

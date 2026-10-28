@@ -37,10 +37,10 @@ export const claim = mutation({
     const now = Date.now();
     for (const j of await ctx.db.query("jobs").withIndex("by_status_priority", (q) => q.eq("status", "running")).collect())
       if ((j.startedAt ?? 0) < now - STALE_MS) await ctx.db.patch(j._id, { status: "pending" });
-    // Players' jobs (priority 0) first, up to `max`. With none waiting, one background job: a par search takes
-    // minutes, so a player who asks meanwhile waits behind at most one.
+    // Jobs someone is waiting on (players at 0, then guests) first, up to `max`. With none waiting, one background job:
+    // a par search takes minutes, so a player who asks meanwhile waits behind at most one.
     const pending = await ctx.db.query("jobs").withIndex("by_status_priority", (q) => q.eq("status", "pending")).take(max);
-    const jobs = pending[0]?.priority === 0 ? pending.filter((j) => j.priority === 0) : pending.slice(0, 1);
+    const jobs = pending[0]?.priority < 1 ? pending.filter((j) => j.priority < 1) : pending.slice(0, 1);
     for (const j of jobs) await ctx.db.patch(j._id, { status: "running", startedAt: now });
     return jobs.map((j) => ({ id: j._id, kind: j.kind, args: j.args }));
   },

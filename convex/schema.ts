@@ -119,7 +119,7 @@ export default defineSchema({
     kind: v.union(v.literal("profile"), v.literal("judge"), v.literal("daily"), v.literal("par"), v.literal("combo")),
     key: v.string(),
     args: v.any(),
-    priority: v.number(), // 0 = a player is waiting
+    priority: v.number(), // 0 = a player is waiting, GUEST_PRIORITY (jobs.ts) = a guest is, 1 = background
     status: v.union(v.literal("pending"), v.literal("running"), v.literal("done"), v.literal("failed")),
     startedAt: v.optional(v.number()),
     error: v.optional(v.string()),
