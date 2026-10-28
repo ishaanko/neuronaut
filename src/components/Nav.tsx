@@ -12,6 +12,7 @@ const LINKS = [
   ["/map", "Map"],
   ["/notes", "Notes"],
   ["/trainers", "Leaderboard"],
+  ["/about", "About"],
 ] as const;
 
 export function Nav() {
