@@ -72,6 +72,28 @@ describe("accounts", () => {
   });
 });
 
+test("removing a test player takes them off every public list and frees what they caught", async () => {
+  const { t, player, putProfiles } = await setup();
+  await withDaily(t);
+  await putProfiles([profile(5, 5, axis(0)), profile(2, 2, axis(2))]);
+  const bot = await player("e2e_bot");
+  const keep = await player("alice");
+  await bot.mutation(api.daily.guess, { layer: 5, n: 5 });
+  await bot.mutation(api.neurons.scan, { layer: 2, n: 2 });
+  await bot.action(api.neurons.catchNeuron, { layer: 2, n: 2, name: "bot catch" });
+  await keep.mutation(api.daily.guess, { layer: 5, n: 5 });
+  await t.mutation(internal.admin.removePlayer, { handle: "e2e_bot" });
+  expect((await t.query(api.players.leaderboard, {})).map((p) => p.handle)).toEqual(["alice"]);
+  expect((await t.query(api.neurons.dex, { paginationOpts: { numItems: 10, cursor: null } })).page).toEqual([]);
+  expect(await t.query(api.neurons.overview, {})).toMatchObject({ caught: 0, recent: [] });
+  expect((await t.query(api.neurons.overview, {})).coverage.every((c) => c === 0)).toBe(true);
+  expect(await t.query(api.daily.current, {})).toMatchObject({ players: 1, solvers: 1 });
+  // the neuron is catchable again
+  await keep.mutation(api.neurons.scan, { layer: 2, n: 2 });
+  await expect(keep.action(api.neurons.catchNeuron, { layer: 2, n: 2, name: "mine" })).resolves.toMatchObject({ rarity: expect.any(String) });
+  await expect(t.mutation(internal.admin.removePlayer, { handle: "alice" })).rejects.toThrow("only test players");
+});
+
 describe("GPU budget", () => {
   test("a player can't have more than GPU.perPlayer jobs waiting, and a refused scan isn't used up", async () => {
     const { player } = await setup();

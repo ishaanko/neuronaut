@@ -1,5 +1,7 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
+import { COVERAGE_BINS, globalStats } from "./jobs";
+import { MODEL } from "./lib";
 
 // Operator tools, run with `npx convex run admin:<name>`. Not callable from the client.
 
@@ -44,5 +46,41 @@ export const resetPlayers = internalMutation({
     const s = await ctx.db.query("stats").withIndex("by_name", (q) => q.eq("name", "global")).unique();
     if (s) await ctx.db.patch(s._id, { caught: 0, coverage: s.coverage.map(() => 0) });
     return n;
+  },
+});
+
+// Handles the E2E and calibration scripts sign up with. Only these can be removed one at a time.
+const TEST_HANDLE = /^(e2e|calib)_/;
+
+// Deletes one test player and everything they did, so test runs don't show on the leaderboard, the dex, the map or a
+// daily's solver count. Their catches become catchable again. e2e/game.mjs calls this when it finishes.
+export const removePlayer = internalMutation({
+  args: { handle: v.string() },
+  handler: async (ctx, { handle }) => {
+    if (!TEST_HANDLE.test(handle)) throw new ConvexError("This removes only test players (e2e_ or calib_ handles)");
+    const p = await ctx.db.query("players").withIndex("by_handle", (q) => q.eq("handleLower", handle.toLowerCase())).unique();
+    if (!p) return false;
+    const catches = await ctx.db.query("catches").withIndex("by_player", (q) => q.eq("playerId", p._id)).collect();
+    const s = await globalStats(ctx);
+    if (s && catches.length) {
+      const coverage = [...s.coverage];
+      for (const c of catches) coverage[c.layer * COVERAGE_BINS + Math.floor((c.n * COVERAGE_BINS) / MODEL.width)] -= 1;
+      await ctx.db.patch(s._id, { caught: s.caught - catches.length, coverage });
+    }
+    for (const c of catches) {
+      const prof = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", c.key)).unique();
+      if (prof) await ctx.db.patch(prof._id, { caught: false });
+      await ctx.db.delete(c._id);
+    }
+    const rows = [
+      ...(await ctx.db.query("scans").withIndex("by_player", (q) => q.eq("playerId", p._id)).collect()),
+      ...(await ctx.db.query("guesses").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
+      ...(await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
+      ...(await ctx.db.query("entries").withIndex("by_player_bounty", (q) => q.eq("playerId", p._id)).collect()),
+      ...(await ctx.db.query("experiments").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
+    ];
+    for (const r of rows) await ctx.db.delete(r._id);
+    await ctx.db.delete(p._id);
+    return true;
   },
 });
