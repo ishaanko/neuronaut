@@ -80,6 +80,11 @@ export const removePlayer = internalMutation({
       ...(await ctx.db.query("experiments").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
     ];
     for (const r of rows) await ctx.db.delete(r._id);
+    // queued judge and lab jobs point at the rows just deleted. Profile jobs stay: they're shared by neuron, and
+    // other players' guesses may be waiting on them.
+    for (const status of ["pending", "running"] as const)
+      for (const j of await ctx.db.query("jobs").withIndex("by_by_status", (q) => q.eq("by", p._id).eq("status", status)).collect())
+        if (j.kind === "judge" || j.kind === "combo") await ctx.db.delete(j._id);
     await ctx.db.delete(p._id);
     return true;
   },

@@ -228,16 +228,20 @@ try {
   // the failing step is already in the report
 } finally {
   await browser.close();
-  // leave nothing behind on the live site: the player and everything it did, then the Clerk user
+  // leave nothing behind on the live site: the player and everything it did, then the Clerk user. A failed cleanup
+  // fails the run, since its player would stay on the leaderboard.
+  const cleanup = { name: "clean up the test player", ok: true, detail: "removed" };
   try {
-    convex("admin:removePlayer", { handle });
+    if (!convex("admin:removePlayer", { handle }) && report.steps[0]?.ok) throw new Error(`no player ${handle} to remove`);
+    await clerkApi("DELETE", `/users/${user.id}`);
   } catch (e) {
-    console.log("cleanup:", String(e.message ?? e).split("\n")[0]);
+    Object.assign(cleanup, { ok: false, detail: String(e?.message ?? e).split("\n")[0] });
   }
-  await clerkApi("DELETE", `/users/${user.id}`).catch((e) => console.log("cleanup:", e.message));
+  report.steps.push(cleanup);
+  console.log(`${cleanup.ok ? "ok  " : "FAIL"} ${cleanup.name}: ${JSON.stringify(cleanup.detail)}`);
 }
 
-report.ok = report.steps.every((s) => s.ok) && report.steps.length === 14;
+report.ok = report.steps.every((s) => s.ok) && report.steps.length === 15;
 writeFileSync(join(out, "report.json"), JSON.stringify(report, null, 1));
 console.log(`${report.ok ? "PASS" : "FAIL"} -> ${out}`);
 process.exit(report.ok ? 0 : 1);
