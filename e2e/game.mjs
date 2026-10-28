@@ -229,14 +229,16 @@ try {
 } finally {
   await browser.close();
   // leave nothing behind on the live site: the player and everything it did, then the Clerk user. A failed cleanup
-  // fails the run, since its player would stay on the leaderboard.
+  // fails the run, since its player would stay on the leaderboard. Each deletion runs even if the other fails.
   const cleanup = { name: "clean up the test player", ok: true, detail: "removed" };
+  const errs = [];
   try {
     if (!convex("admin:removePlayer", { handle }) && report.steps[0]?.ok) throw new Error(`no player ${handle} to remove`);
-    await clerkApi("DELETE", `/users/${user.id}`);
   } catch (e) {
-    Object.assign(cleanup, { ok: false, detail: String(e?.message ?? e).split("\n")[0] });
+    errs.push(`player: ${String(e?.message ?? e).split("\n")[0]}`);
   }
+  await clerkApi("DELETE", `/users/${user.id}`).catch((e) => errs.push(`clerk: ${String(e?.message ?? e).split("\n")[0]}`));
+  if (errs.length) Object.assign(cleanup, { ok: false, detail: errs.join(" | ") });
   report.steps.push(cleanup);
   console.log(`${cleanup.ok ? "ok  " : "FAIL"} ${cleanup.name}: ${JSON.stringify(cleanup.detail)}`);
 }
