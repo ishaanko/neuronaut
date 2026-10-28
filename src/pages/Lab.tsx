@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { LIMITS } from "../../convex/rules";
 import { Replies } from "../components/Replies";
-import { Button, ErrorLine, Input, Label, NeuronInput, NeuronLink, Steps } from "../components/ui";
+import { Button, ErrorLine, Input, Label, NeuronInput, NeuronLink, Panel } from "../components/ui";
 import { dexNo } from "../lib/format";
 import { useUnlock } from "../lib/notes";
 import { errorText, useSession } from "../lib/session";
@@ -52,26 +52,22 @@ export function Lab() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-5">
-        <div>
-          <h1 className="font-pixel text-4xl">LAB</h1>
-          <div className="mt-1 h-6 text-dim">Push two neurons at once. Do their effects add up?</div>
-        </div>
-        <Steps
-          steps={[
-            <>Pick two neurons, ideally ones you've already seen.</>,
-            <>The model reads the same normal replies with each push alone, then both.</>,
-            <>See whether the pair does the sum of the two, or something new. {LIMITS.experiments} a day.</>,
-          ]}
-        />
+      <div className="space-y-4">
+        <h1 className="text-4xl font-bold tracking-tight">Lab<span className="text-rust">.</span></h1>
+        <p className="max-w-[70ch] text-dim">
+          Push two neurons at once and see if their effects add up. The model reads the same normal replies three times: with
+          each push alone, then with both. If the pair does exactly the sum of the two, the network is acting linearly. If not,
+          the layers in between bent it. {LIMITS.experiments} experiments a day.
+        </p>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_420px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
         <section className="space-y-6">
           {mine === undefined ? null : mine.length === 0 ? (
-            <div className="rounded-2xl border-2 border-dashed border-line-strong p-6 text-dim">
-              No experiments yet. Try a pair at a small dose, then the same pair at 1.0, then two neurons that push the same word.
-            </div>
+            <p className="rounded-[3px] border border-line p-6 text-dim">
+              No experiments yet. A good first run: one pair at a small dose, then the same pair at 1.0. Then try two neurons that
+              push the same word.
+            </p>
           ) : (
             mine.map((e) => {
               const v =
@@ -81,18 +77,18 @@ export function Lab() {
                     ? { title: "Too faint to tell", body: "One of these barely changes anything alone, so there is little to add up and the numbers are mostly noise. Try two stronger neurons." }
                     : verdict(e.additivity, e.gain ?? 1);
               return (
-                <article key={e.id} className="rounded-2xl border border-line bg-card p-6">
+                <article key={e.id} className="rounded-[3px] border border-line bg-card p-6">
                   <div className="flex flex-wrap items-center gap-2 font-mono text-sm">
                     <NeuronLink layer={e.a.layer} n={e.a.n} /> ×{e.a.dose} <span className="text-dim">+</span>
                     <NeuronLink layer={e.b.layer} n={e.b.n} /> ×{e.b.dose}
                   </div>
-                  {e.status === "pending" && <div className="mt-3 text-dim">Running on the GPU…</div>}
-                  {e.status === "failed" && <div className="mt-3 text-glitch">The run failed. Try again.</div>}
+                  {e.status === "pending" && <p className="mt-3 text-dim">Running the model…</p>}
+                  {e.status === "failed" && <p className="mt-3 text-glitch">The run failed. Try again.</p>}
                   {v && (
                     <>
                       <div className="mt-3 text-2xl font-semibold">{v.title}</div>
                       <p className="text-dim">{v.body}</p>
-                      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <div className="mt-4 grid grid-cols-2 gap-4 border-y border-line py-4 sm:grid-cols-4">
                         <Metric label="Additivity" value={e.additivity!.toFixed(3)} sub="cosine with the sum" />
                         <Metric label="Size" value={`${e.gain!.toFixed(2)}×`} sub="of the sum" />
                         <Metric label={`Like ${dexNo(e.a.layer, e.a.n)}`} value={e.towardA!.toFixed(2)} sub="cosine" />
@@ -111,9 +107,9 @@ export function Lab() {
           )}
         </section>
 
-        <aside className="space-y-6 lg:sticky lg:top-20 lg:self-start">
+        <aside className="order-first space-y-6 lg:order-none lg:sticky lg:top-20 lg:self-start">
+          <Panel ascii="lab" className="p-5">
           <form
-            className="rounded-2xl border border-line bg-card p-5"
             onSubmit={(e) => {
               e.preventDefault();
               go();
@@ -121,11 +117,11 @@ export function Lab() {
           >
             <Label>Your two neurons</Label>
             {([0, 1] as const).map((i) => (
-              <div key={i} className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="w-5 font-semibold text-dim">{i ? "B" : "A"}</span>
+              <div key={i} className="mt-3 flex flex-wrap items-end gap-2">
+                <span className="flex h-11 w-5 items-center font-medium text-dim">{i ? "B" : "A"}</span>
                 <NeuronInput layer={slots[i].layer} n={slots[i].n} onLayer={(v) => set(i, { layer: v })} onN={(v) => set(i, { n: v })} />
-                <label className="flex items-center gap-1.5">
-                  <span className="text-sm font-semibold text-dim">×</span>
+                <label className="block">
+                  <span className="mb-1 block text-xs text-dim">Dose</span>
                   <Input value={slots[i].dose} onChange={(e) => set(i, { dose: e.target.value })} className="w-20 text-center font-mono" inputMode="decimal" aria-label={`dose ${i ? "B" : "A"}`} />
                 </label>
               </div>
@@ -137,12 +133,13 @@ export function Lab() {
               <ErrorLine error={error} />
             </div>
           </form>
+          </Panel>
           {me && seen && seen.length > 0 && (
             <div>
               <Label className="mb-2">Neurons you've seen</Label>
               <div className="flex flex-wrap gap-2">
                 {seen.slice(0, 18).map((s) => (
-                  <button key={`${s.layer}:${s.n}`} onClick={() => fill(s.layer, s.n)} className="press rounded-lg bg-raised px-2.5 py-1.5 font-mono text-sm hover:bg-line">
+                  <button key={`${s.layer}:${s.n}`} onClick={() => fill(s.layer, s.n)} className="press rounded-[3px] border border-line-strong px-2.5 py-1.5 font-mono text-sm hover:bg-raised">
                     {dexNo(s.layer, s.n)}
                   </button>
                 ))}
@@ -157,8 +154,8 @@ export function Lab() {
 
 function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-xl bg-raised px-3 py-2.5">
-      <div className="truncate text-xs font-semibold uppercase tracking-[0.08em] text-dim">{label}</div>
+    <div>
+      <div className="truncate text-sm text-dim">{label}</div>
       <div className="font-mono text-xl tabular-nums">{value}</div>
       <div className="text-xs text-faint">{sub}</div>
     </div>

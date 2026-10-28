@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import zones from "../data/zones.json";
-import { useIsDark } from "../lib/theme";
 import { dexNo } from "../lib/format";
 
 // The behavior map (worker/places.py writes src/data/zones.json): neurons laid out by what pushing them does. Zones are
@@ -27,7 +26,7 @@ export const zoneAt = (cell: number) => {
   return ch && ch !== "." ? ZONES[ch.charCodeAt(0) - 97] : null;
 };
 
-// color: a hex value, or a theme variable like "--fg" (read when drawing, so it follows light and dark).
+// color: a hex value, or a theme variable like "--color-fg" (read from the stylesheet when drawing).
 export type Dot = { layer: number; n: number; x: number; y: number; color: string; size?: number; ring?: boolean; label?: string };
 
 export function BehaviorMap({
@@ -49,7 +48,6 @@ export function BehaviorMap({
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(0);
   const [hover, setHover] = useState<Dot | null>(null);
-  const dark = useIsDark();
 
   useEffect(() => {
     const el = box.current;
@@ -71,7 +69,7 @@ export function BehaviorMap({
     for (let i = 0; i < G * G; i++) {
       const z = zoneAt(i);
       if (!z) continue;
-      g.globalAlpha = i === selected ? (dark ? 0.7 : 0.55) : dark ? 0.28 : 0.2;
+      g.globalAlpha = i === selected ? 0.75 : 0.32;
       g.fillStyle = zoneTint(z.id);
       // whole-pixel edges, so neighbouring squares meet without overlapping (overlaps show as darker seams)
       const [x0, y0] = [Math.round((i % G) * s), Math.round(Math.floor(i / G) * s)];
@@ -93,7 +91,7 @@ export function BehaviorMap({
         g.fill();
       }
     }
-  }, [dots, size, selected, dark]);
+  }, [dots, size, selected]);
 
   const nearest = (px: number, py: number) => {
     let best: Dot | null = null;
@@ -131,7 +129,7 @@ export function BehaviorMap({
         ZONES.map((z) => (
           <span
             key={z.id}
-            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-card/80 px-1 font-pixel text-[10px] uppercase leading-tight text-dim sm:text-xs"
+            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap bg-bg/85 px-1 font-mono text-[9px] uppercase leading-tight tracking-wider text-fg sm:text-[10px]"
             style={{ left: `${Math.min(0.9, Math.max(0.1, z.x)) * 100}%`, top: `${Math.min(0.96, Math.max(0.04, z.y)) * 100}%` }}
           >
             {z.name}
@@ -139,7 +137,7 @@ export function BehaviorMap({
         ))}
       {hover && (
         <span
-          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+10px)] whitespace-nowrap rounded-lg bg-accent px-2 py-1 font-mono text-xs text-accent-fg"
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+10px)] whitespace-nowrap rounded-[3px] bg-accent px-2 py-1 font-mono text-xs text-accent-fg"
           style={{ left: hover.x * size, top: hover.y * size }}
         >
           {dexNo(hover.layer, hover.n)}
@@ -157,9 +155,9 @@ export function ZoneLegend({ only }: { only?: string }) {
     <ul className="space-y-2.5">
       {list.map((z) => (
         <li key={z.id} className="flex gap-3">
-          <span className="mt-1.5 h-3 w-3 shrink-0 rounded-sm" style={{ background: zoneTint(z.id) }} />
+          <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: zoneTint(z.id) }} />
           <span>
-            <span className="font-semibold">{z.name}</span> <span className="text-dim">{z.blurb}</span>
+            <span className="font-medium">{z.name}</span> <span className="text-dim">{z.blurb}</span>
           </span>
         </li>
       ))}

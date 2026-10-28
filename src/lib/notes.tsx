@@ -131,14 +131,14 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={{ seen, unlock }}>
       {children}
       {note && (
-        <div role="status" className="note-in fixed inset-x-4 bottom-4 z-50 rounded-2xl border-2 border-fg bg-card p-4 shadow-xl sm:left-auto sm:w-96">
-          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-dim">New field note</div>
+        <div role="status" className="note-in fixed inset-x-4 bottom-4 z-50 rounded-[3px] border border-fg bg-card p-4 sm:left-auto sm:w-96">
+          <div className="text-sm text-dim">New field note</div>
           <div className="mt-1 text-lg font-semibold">{note.title}</div>
           <div className="mt-3 flex gap-2">
-            <Link to={`/notes#${note.id}`} onClick={() => setFresh(null)} className="press inline-flex h-10 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg">
+            <Link to={`/notes#${note.id}`} onClick={() => setFresh(null)} className="press inline-flex h-10 items-center rounded-[3px] bg-accent px-4 text-sm font-medium text-accent-fg">
               Read it
             </Link>
-            <button onClick={() => setFresh(null)} className="press h-10 rounded-xl px-3 text-sm font-medium text-dim hover:text-fg">
+            <button onClick={() => setFresh(null)} className="press h-10 rounded-[3px] px-3 text-sm text-dim hover:text-fg">
               Later
             </button>
           </div>

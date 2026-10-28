@@ -9,8 +9,6 @@ export const RARITY_COLOR: Record<Rarity, string> = {
   glitch: "text-glitch",
 };
 
-export const RARITY_MARKS: Record<Rarity, number> = { legendary: 4, epic: 3, rare: 2, uncommon: 1, common: 0, glitch: 1 };
-
 // "14·2742": layer and neuron, the dex number.
 export function dexNo(layer: number, n: number) {
   return `${String(layer).padStart(2, "0")}·${String(n).padStart(4, "0")}`;
@@ -44,7 +42,7 @@ export function heatBg(heat: number | null, correct = false) {
 
 // The same color as a theme variable, for canvases (the behavior map's dots).
 export function heatVar(heat: number | null, correct = false) {
-  return "--" + heatBg(heat, correct).slice(3);
+  return "--color-" + heatBg(heat, correct).slice(3);
 }
 
 // The share grid's emoji for one guess, matching heatBg.
@@ -56,4 +54,12 @@ export function heatEmoji(heat: number, correct: boolean) {
 export function rankText(rank: number) {
   if (rank <= LADDER_EXACT) return `#${rank}`;
   return `~#${rank < 10_000 ? (rank / 1000).toFixed(1) : Math.round(rank / 1000)}k`;
+}
+
+// Seconds as m:ss (or h:mm:ss past an hour), for the daily's solve clock.
+export function clock(seconds: number) {
+  const s = Math.max(0, Math.floor(seconds));
+  const [h, m, r] = [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60];
+  const pad = (x: number) => String(x).padStart(2, "0");
+  return h ? `${h}:${pad(m)}:${pad(r)}` : `${m}:${pad(r)}`;
 }

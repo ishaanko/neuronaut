@@ -1,4 +1,50 @@
-// Steered replies next to another set of replies to the same prompts (the unsteered model's, by default), one card per
+import type { ReactNode } from "react";
+
+// Replies stop after this many tokens (worker/engine.py MAX_NEW), so most end mid-sentence.
+export const REPLY_TOKENS = 40;
+
+// **bold** inside a line. A ** left open by the token cut is dropped.
+function inline(line: string): ReactNode[] {
+  return line.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") && part.length > 4 ? (
+      <strong key={i} className="font-semibold">
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      part.replace(/\*\*/g, "")
+    ),
+  );
+}
+
+// One model reply. The model writes markdown, so headings and bold render as such instead of showing their
+// asterisks and hashes. A reply that stopped mid-sentence ends with a faint ellipsis.
+export function Reply({ text, className = "" }: { text: string; className?: string }) {
+  const t = text.trim();
+  if (!t) return <p className={`italic text-faint ${className}`}>Nothing. The model stopped right away.</p>;
+  const cut = !/[.!?…)"'”»\]]$/.test(t);
+  const lines = t.split("\n");
+  return (
+    <div className={`space-y-1.5 text-[15px] leading-relaxed ${className}`}>
+      {lines.map((raw, i) => {
+        if (!raw.trim()) return null;
+        const heading = /^\s*#{1,6}\s+/.test(raw);
+        const line = raw.replace(/^\s*#{1,6}\s+/, "").replace(/^\s*[-*]\s+/, "• ");
+        return (
+          <p key={i} className={heading ? "font-semibold" : ""}>
+            {inline(line)}
+            {cut && i === lines.length - 1 && (
+              <span className="text-faint" title={`Replies stop after ${REPLY_TOKENS} tokens`}>
+                …
+              </span>
+            )}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+// Steered replies next to another set of replies to the same prompts (the unsteered model's, by default), one row per
 // prompt.
 export function Replies({
   prompts,
@@ -14,19 +60,19 @@ export function Replies({
   baselineLabel?: string;
 }) {
   return (
-    <div className="space-y-4">
+    <div className="divide-y divide-line rounded-[3px] border border-line bg-card">
       {prompts.map((p, i) => (
-        <div key={i} className="rounded-2xl border border-line bg-card p-5">
-          <div className="text-[15px] font-semibold">{p}</div>
+        <div key={i} className="p-5">
+          <div className="font-semibold">{p}</div>
           <div className={`mt-3 grid gap-5 ${baseline ? "md:grid-cols-2" : ""}`}>
             <div>
-              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider">{steeredLabel}</div>
-              <div className="screen text-fg">{steered[i] || "(silence)"}</div>
+              <div className="mb-1 text-xs text-dim">{steeredLabel}</div>
+              <Reply text={steered[i] ?? ""} />
             </div>
             {baseline && (
               <div>
-                <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-faint">{baselineLabel}</div>
-                <div className="screen text-dim">{baseline[i]}</div>
+                <div className="mb-1 text-xs text-dim">{baselineLabel}</div>
+                <Reply text={baseline[i] ?? ""} className="text-dim" />
               </div>
             )}
           </div>

@@ -4,14 +4,19 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="A game played inside a language model. Find the hidden neuron of the day, catch rare neurons, win bounties by steering." />
-    <meta name="theme-color" content="#f7f5f0" />
+    <meta name="description" content="Push one neuron and a language model starts talking about the sea. Every day one of Qwen3.5-4B's 294,912 neurons is hidden. Find it in 15 guesses." />
+    <meta name="theme-color" content="#ece7dc" />
     <title>Neuronaut</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Neuronaut" />
+    <meta property="og:title" content="Neuronaut: find the neuron behind the words" />
+    <meta property="og:description" content="Every day one of Qwen3.5-4B's 294,912 neurons is hidden. Read what it does to the model, then find it in 15 guesses." />
+    <meta property="og:image" content="https://neuronaut.ishaanko.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://neuronaut.ishaanko.com/og.png" />
     <link rel="preconnect" href="%VITE_CONVEX_URL%" crossorigin />
-    <script>
-      // Light by default; dark only if the player picked it. Runs before first paint, so there's no flash.
-      if (localStorage.getItem("neuronaut:theme") === "dark") document.documentElement.classList.add("dark");
-    </script>
   </head>
   <body>
     <div id="root"></div>

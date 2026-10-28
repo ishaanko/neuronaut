@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { BehaviorMap, type Dot, ZoneLegend, zoneAt } from "../components/BehaviorMap";
-import { Button, ErrorLine, Label, Steps } from "../components/ui";
+import { Button, ErrorLine, Label } from "../components/ui";
 import zones from "../data/zones.json";
 import { useUnlock } from "../lib/notes";
 import { errorText, useSession } from "../lib/session";
@@ -21,8 +21,8 @@ export function MapPage() {
   const dots = useMemo<Dot[]>(() => {
     const seen = new Set((mine ?? []).map((m) => `${m.layer}:${m.n}`));
     return [
-      ...(caught ?? []).filter((c) => !seen.has(`${c.layer}:${c.n}`)).map((c) => ({ ...c, color: "--fg", ring: true, label: c.name })),
-      ...(mine ?? []).map((m) => ({ ...m, color: "--fg" })),
+      ...(caught ?? []).filter((c) => !seen.has(`${c.layer}:${c.n}`)).map((c) => ({ ...c, color: "--color-fg", ring: true, label: c.name })),
+      ...(mine ?? []).map((m) => ({ ...m, color: "--color-fg" })),
     ];
   }, [mine, caught]);
 
@@ -41,31 +41,28 @@ export function MapPage() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-5">
+      <div className="space-y-4">
         <div>
-          <h1 className="font-pixel text-4xl">MAP</h1>
-          <div className="mt-1 h-6 text-dim">
-            {zones.placed.toLocaleString()} neurons placed by what pushing them does · {mine ? `${mine.length} seen by you` : " "}
+          <h1 className="text-4xl font-bold tracking-tight">Map<span className="text-rust">.</span></h1>
+          <div className="mt-1 min-h-6 text-dim">
+            {zones.placed.toLocaleString()} neurons placed by what pushing them does{mine ? ` · ${mine.length} seen by you` : ""}
           </div>
         </div>
-        <Steps
-          steps={[
-            <>Neurons that act alike sit close together. Colors are zones of similar effects.</>,
-            <>Tap a spot to pick a neuron from it, then predict what it does before you scan.</>,
-            <>Your neurons fill in as dots. Rings are ones other players caught.</>,
-          ]}
-        />
+        <p className="max-w-[70ch] text-dim">
+          Neurons that act alike sit close together, and each color is a zone of similar effects. Tap a spot to pick a neuron from
+          it. Dots are neurons you've seen, rings are ones other players caught.
+        </p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="rounded-2xl border border-line bg-card p-3 sm:p-4 lg:self-start">
+        <div className="rounded-[3px] border border-line bg-card p-3 sm:p-4 lg:self-start">
           <BehaviorMap dots={dots} selected={cell} onCell={setCell} onDot={(d) => nav(`/n/${d.layer}/${d.n}`)} />
         </div>
         <aside className="space-y-6 lg:sticky lg:top-20 lg:self-start">
-          <div className="min-h-40 rounded-2xl border border-line bg-card p-5">
+          <div className="min-h-40 rounded-[3px] border border-line bg-card p-5">
             {zone ? (
               <>
-                <Label>You picked</Label>
+                <Label>This spot</Label>
                 <div className="mt-2">
                   <ZoneLegend only={zone.id} />
                 </div>
@@ -78,10 +75,10 @@ export function MapPage() {
                 </div>
               </>
             ) : (
-              <div className="text-dim">
-                Tap anywhere on the map to see what lives there. {Math.round((1 - zones.placed / zones.total) * 100)}% of
-                neurons are quiet: pushed alone, they barely change anything, so they have no place here.
-              </div>
+              <p className="text-dim">
+                Tap anywhere on the map to see what lives there. The other {Math.round((1 - zones.placed / zones.total) * 100)}%
+                of neurons barely change anything when pushed alone, so they have no spot.
+              </p>
             )}
           </div>
           <div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { errorText } from "../lib/session";
-import { Button, ErrorLine, Input, Label } from "./ui";
+import { Button, ErrorLine, Input } from "./ui";
 
 // Asks a newly signed-in user for the handle they'll play under.
 export function JoinDialog({ onJoin, onClose, onSignOut }: { onJoin: (handle: string) => Promise<void>; onClose: () => void; onSignOut: () => void }) {
@@ -21,17 +21,17 @@ export function JoinDialog({ onJoin, onClose, onSignOut }: { onJoin: (handle: st
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1b1814]/55 px-4" onMouseDown={onClose}>
       <form
-        className="w-full max-w-[360px] border border-line-strong bg-bg p-6"
+        className="w-full max-w-[380px] border-2 border-fg bg-bg p-6"
         onMouseDown={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
           go();
         }}
       >
-        <Label>New trainer</Label>
-        <p className="mt-2 text-xs text-dim">Pick the handle other players will see. You can't change it later.</p>
+        <h2 className="text-xl font-semibold">Pick a handle</h2>
+        <p className="mt-1 text-dim">This is the name other players see. You can't change it later.</p>
         <div className="mt-4">
           <Input autoFocus value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="handle" maxLength={16} className="w-full" />
         </div>
