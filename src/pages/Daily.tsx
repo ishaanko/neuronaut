@@ -271,7 +271,7 @@ export function Daily() {
             label: "Your time",
             value: (
               <span className="font-mono tabular-nums">
-                {d.result?.seconds != null ? clock(d.result.seconds) : d.startedAt ? clock((now - d.startedAt) / 1000) : "-"}
+                {d.result ? (d.result.seconds !== null ? clock(d.result.seconds) : "-") : d.startedAt ? clock((now - d.startedAt) / 1000) : "-"}
               </span>
             ),
           },
