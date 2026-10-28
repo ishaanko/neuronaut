@@ -4,7 +4,7 @@ A game played inside Qwen3.5-4B. The model has 294,912 MLP neurons. Push one whi
 talking about the sea, turn into a doctor, or fall apart. Most do almost nothing. The game is finding the ones that
 don't.
 
-Play it at [neuronaut-swart.vercel.app](https://neuronaut-swart.vercel.app).
+Play it at [neuronaut.ishaanko.com](https://neuronaut.ishaanko.com).
 
 Built on [neuron-explorer](https://github.com/lyramakesmusic/neuron-explorer) by
 [lyramakesmusic](https://github.com/lyramakesmusic). The steering method, the steer lens and the
@@ -72,7 +72,7 @@ terminal's cgroup and die with it, so they don't work here.
 Production: pushes to `main` deploy the site and the Convex backend together on Vercel (`vercel.json` runs
 `convex deploy` with the prod deploy key). The GPU worker serves production with `WORKER_ENV=.env.prod.local ./up.sh`,
 where `worker/.env.prod.local` holds the prod `CONVEX_URL` and `WORKER_SECRET`. The E2E runs against it with
-`node e2e/game.mjs --url https://neuronaut-swart.vercel.app --deployment greedy-skunk-576`.
+`node e2e/game.mjs --url https://neuronaut.ishaanko.com --deployment greedy-skunk-576`.
 
 ## Layout
 
