@@ -22,8 +22,11 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   vi.stubEnv("WORKER_SECRET", SECRET);
+  vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Network is forbidden in offline tests"); }));
 });
 afterEach(() => {
+  expect(fetch).not.toHaveBeenCalled();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
   vi.unstubAllEnvs();
 });
@@ -55,7 +58,7 @@ async function setup() {
     );
   const snapshot = () =>
     t.run(async (ctx) => {
-      const tables = ["players", "scans", "guesses", "results", "entries", "jobs", "catches", "profiles", "stats", "bounties", "dailies"] as const;
+      const tables = ["players", "scans", "guesses", "results", "entries", "jobs", "catches", "profiles", "stats", "bounties", "dailies", "experiments", "places"] as const;
       return Object.fromEntries(await Promise.all(tables.map(async (name) => [name, await ctx.db.query(name).collect()])));
     });
   return { t, alice, bob, aliceId, bobId, seedProfile, seedDaily, seedBounty, snapshot };
@@ -80,6 +83,8 @@ test("one player's daily solve doesn't reveal the answer, hints or guesses to an
   await bob.mutation(api.daily.guess, { layer: 1, n: 2 });
   const a = (await alice.query(api.daily.current, {}))!;
   expect([a.result?.solved, a.answer?.layer, a.answer?.n]).toEqual([true, 1, 99]);
+  expect(a.band).toEqual([0, 7]);
+  expect(a.hint).toBe("private hint");
   for (const viewer of [bob, t])
     expect(await viewer.query(api.daily.current, {})).toMatchObject({ result: null, answer: null, band: null, hint: null, solvers: 1 });
   expect((await bob.query(api.daily.current, {}))!.guesses.map((g) => g.n)).toEqual([2]);
@@ -162,7 +167,9 @@ test("every worker endpoint refuses a wrong secret, and all of them refuse when 
     return { entryId, jobId };
   });
   // Valid arguments apart from the secret, so the guard (not the validator) is what refuses.
+  const experimentId = await t.run((ctx) => ctx.db.insert("experiments", { playerId: bobId, a: pushes[0], b: { ...pushes[0], n: 2 }, date: DATE, status: "pending" }));
   const calls = (secret: string) => [
+    () => bob.mutation(api.worker.finishCombo, { secret, id: jobId, experimentId, texts: [], additivity: 1, gain: 1, towardA: 1, towardB: 1 }),
     () => bob.query(api.worker.pending, { secret }),
     () => bob.mutation(api.worker.claim, { secret, max: 1 }),
     () => bob.mutation(api.worker.fail, { secret, id: jobId, error: "x" }),
@@ -179,7 +186,104 @@ test("every worker endpoint refuses a wrong secret, and all of them refuse when 
   ];
   const before = await snapshot();
   for (const call of calls("wrong")) await expect(call()).rejects.toThrow("bad worker secret");
+  for (const call of calls("")) await expect(call()).rejects.toThrow("bad worker secret");
+  // Deliberately bypass static typing to exercise the production required-field validators.
+  for (const call of calls(undefined as unknown as string)) await expect(call()).rejects.toThrow(/secret/);
   vi.stubEnv("WORKER_SECRET", "");
   for (const call of calls("")) await expect(call()).rejects.toThrow("bad worker secret");
   expect(await snapshot()).toEqual(before);
+});
+
+test("forged ownership fields cannot redirect public reads or writes", async () => {
+  const { bob, aliceId, snapshot } = await setup();
+  const before = await snapshot();
+  for (const forged of [{ playerId: aliceId }, { userId: "test|alice" }, { handle: "Alice" }, { isAuthenticated: true }]) {
+    // These are runtime attacks: valid client TypeScript would reject the extra fields.
+    await expect(bob.query(api.players.me, forged as never)).rejects.toThrow(/Unexpected field/);
+    await expect(bob.query(api.lab.mine, forged as never)).rejects.toThrow(/Unexpected field/);
+    await expect(bob.query(api.map.mine, forged as never)).rejects.toThrow(/Unexpected field/);
+    await expect(bob.query(api.daily.current, forged as never)).rejects.toThrow(/Unexpected field/);
+    await expect(bob.mutation(api.daily.guess, { layer: 1, n: 1, ...forged })).rejects.toThrow(/Unexpected field/);
+    await expect(bob.mutation(api.bounties.submit, { slug: "isolation", pushes, ...forged })).rejects.toThrow(/Unexpected field/);
+    await expect(bob.mutation(api.neurons.scan, { layer: 1, n: 1, ...forged })).rejects.toThrow(/Unexpected field/);
+  }
+  expect(await snapshot()).toEqual(before);
+});
+
+test("catch action and both internal authorization paths reject absent or uninitialized identities", async () => {
+  const { t, snapshot } = await setup();
+  const before = await snapshot();
+  for (const [viewer, message] of [[t, "Sign in first"], [t.withIdentity({ tokenIdentifier: "test|new" }), "Pick a handle first"]] as const) {
+    await expect(viewer.action(api.neurons.catchNeuron, { layer: 1, n: 1, name: "Catch" })).rejects.toThrow(message);
+    await expect(viewer.query(internal.neurons.catchCheck, { layer: 1, n: 1 })).rejects.toThrow(message);
+    await expect(viewer.mutation(internal.neurons.catchCommit, { layer: 1, n: 1, name: "Catch", uniqueness: 1 })).rejects.toThrow(message);
+    await expect(viewer.mutation(api.lab.run, { a: pushes[0], b: { ...pushes[0], n: 2 } })).rejects.toThrow(message);
+  }
+  expect(await snapshot()).toEqual(before);
+});
+
+test.each(["complete", "fail"] as const)("a shared profile job can %s after logout without mixing its players' progress", async (outcome) => {
+  const { t, alice, bob, aliceId, bobId, seedDaily } = await setup();
+  await seedDaily();
+  await alice.mutation(api.daily.guess, { layer: 1, n: 1 });
+  await bob.mutation(api.daily.guess, { layer: 1, n: 1 });
+  const jobs = await t.run((ctx) => ctx.db.query("jobs").collect());
+  expect(jobs).toHaveLength(1);
+  expect(jobs[0].by).toBe(aliceId);
+  if (outcome === "complete") {
+    const callback = { secret: SECRET, jobIds: [jobs[0]._id], profiles: [profile(1, axis(0))] };
+    await t.mutation(api.worker.putProfiles, callback); // no player session is needed by the worker
+    await t.mutation(api.worker.putProfiles, callback); // retry must not award twice
+  } else {
+    await t.mutation(api.worker.fail, { secret: SECRET, id: jobs[0]._id, error: "synthetic failure" });
+  }
+  const returningAlice = t.withIdentity({ tokenIdentifier: "test|alice", sessionId: "new-session" });
+  expect((await returningAlice.query(api.players.me, {}))!._id).toBe(aliceId);
+  expect((await bob.query(api.players.me, {}))!._id).toBe(bobId);
+  for (const viewer of [returningAlice, bob]) {
+    const daily = (await viewer.query(api.daily.current, {}))!;
+    expect(daily.guesses).toHaveLength(outcome === "complete" ? 1 : 0);
+    expect(daily.result?.solved ?? false).toBe(outcome === "complete");
+    expect((await viewer.query(api.players.me, {}))!.points).toBe(outcome === "complete" ? dailyPoints(1) : 0);
+  }
+  expect((await t.query(api.daily.current, {}))!.result).toBeNull();
+});
+
+test("replaying a scan preserves its ID, quota and prediction award across sessions", async () => {
+  const { t, alice, aliceId, bob, snapshot } = await setup();
+  await alice.mutation(api.neurons.scan, { layer: 1, n: 1, prediction: "quiet" });
+  const before = await snapshot();
+  const returning = t.withIdentity({ tokenIdentifier: "test|alice", sessionId: "renewed" });
+  await returning.mutation(api.neurons.scan, { layer: 1, n: 1, prediction: "word" });
+  expect(await snapshot()).toEqual(before);
+  expect((await returning.query(api.players.me, {}))!._id).toBe(aliceId);
+  expect(await bob.query(api.neurons.seen, {})).toEqual([]);
+  expect(await t.query(api.neurons.seen, {})).toEqual([]);
+});
+
+test("a lab callback writes only the admitted owner's private experiment after an account switch", async () => {
+  const { t, alice, bob, aliceId } = await setup();
+  const id = await alice.mutation(api.lab.run, { a: pushes[0], b: { ...pushes[0], n: 2 } });
+  const job = (await t.run((ctx) => ctx.db.query("jobs").collect()))[0];
+  expect(job.by).toBe(aliceId);
+  await bob.mutation(api.worker.finishCombo, {
+    secret: SECRET, id: job._id, experimentId: id, texts: ["private lab output"], additivity: 0.9, gain: 1, towardA: 0.7, towardB: 0.8,
+  });
+  expect(await bob.query(api.lab.mine, {})).toEqual([]);
+  expect(await t.query(api.lab.mine, {})).toEqual([]);
+  expect(await alice.query(api.lab.mine, {})).toMatchObject([{ id, status: "done", texts: ["private lab output"] }]);
+});
+
+
+test("mutable identity claims do not change ownership and another issuer cannot claim the same subject", async () => {
+  const { t } = await setup();
+  const identity = { subject: "same-subject", issuer: "https://issuer-one.example", tokenIdentifier: "issuer-one|same-subject" };
+  const owner = t.withIdentity(identity);
+  await owner.mutation(api.players.join, { handle: "Stable" });
+  const me = await owner.query(api.players.me, {});
+  const renewed = t.withIdentity({ ...identity, name: "Changed", nickname: "Bob", sessionId: "renewed" });
+  expect(await renewed.query(api.players.me, {})).toEqual(me);
+  const other = t.withIdentity({ subject: identity.subject, issuer: "https://issuer-two.example", tokenIdentifier: "issuer-two|same-subject" });
+  expect(await other.query(api.players.me, {})).toBeNull();
+  // Synthetic identities test database lookup isolation, not which JWT issuers a deployment accepts.
 });
