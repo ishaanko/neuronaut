@@ -133,9 +133,11 @@ try {
     await page.getByLabel("neuron", { exact: true }).fill(String(ans.n));
     await page.getByRole("button", { name: "Guess", exact: true }).click();
     const solved = await page.getByText(/Solved in \d+/).first().textContent({ timeout: 60000 });
-    await page.getByRole("dialog", { name: "Today's result" }).waitFor(); // the result card opens by itself
+    const card = await page.getByRole("dialog", { name: "Today's result" }).innerText(); // the result card opens by itself
+    const time = card.match(/Solved in \d+ guess(?:es)?, (\d+:\d\d)/)?.[1];
+    if (!time) throw new Error(`no solve time on the result card: ${card.replace(/\s+/g, " ").slice(0, 120)}`);
     await page.keyboard.press("Escape");
-    return { answer: ans, solved };
+    return { answer: ans, solved, time };
   });
 
   await step("practice: replay yesterday's puzzle for no points", async () => {

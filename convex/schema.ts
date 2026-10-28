@@ -166,9 +166,16 @@ export default defineSchema({
     guesses: v.number(),
     heats: v.array(v.number()),
     practice: v.optional(v.boolean()),
+    seconds: v.optional(v.number()), // solve clock: first open (or first guess) to the last guess that counted
   })
     .index("by_player_date", ["playerId", "date"])
     .index("by_date", ["date"]),
+
+  // When a player first opened a daily, so the solve clock includes reading the clues. One row per player and date.
+  opens: defineTable({
+    playerId: v.id("players"),
+    date: v.string(),
+  }).index("by_player_date", ["playerId", "date"]),
 
   // The lab: two neurons pushed separately and together, to see whether their effects add up (worker/main.py combo).
   // additivity: cosine between the joint effect and the sum of the separate ones; gain: the joint effect's size over the

@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { enqueue } from "./jobs";
 import { placeOf } from "./map";
@@ -25,6 +25,14 @@ async function dailyFor(ctx: MutationCtx | Parameters<typeof playerFor>[0], date
   return await ctx.db.query("dailies").withIndex("by_date", (q) => q.eq("date", date)).unique();
 }
 
+// When this player's clock started on a puzzle: their first open, or their first guess if that came earlier (they
+// guessed before the open was recorded). Null if they've done neither.
+async function startedAt(ctx: MutationCtx | Parameters<typeof playerFor>[0], playerId: Id<"players">, date: string, firstGuess?: number) {
+  const open = await ctx.db.query("opens").withIndex("by_player_date", (q) => q.eq("playerId", playerId).eq("date", date)).unique();
+  const times = [open?._creationTime, firstGuess].filter((x) => x !== undefined);
+  return times.length ? Math.min(...times) : null;
+}
+
 export function dailyPoints(guesses: number) {
   return 10 + 2 * (LIMITS.guesses - guesses);
 }
@@ -48,6 +56,7 @@ export const current = query({
       : null;
     const all = (await ctx.db.query("results").withIndex("by_date", (q) => q.eq("date", d)).collect()).filter((r) => !r.practice);
     const finished = !!result;
+    const first = guesses.length ? Math.min(...guesses.map((g) => g._creationTime)) : undefined;
     const at = async (layer: number, n: number) => {
       const p = await placeOf(ctx, layer, n);
       return p?.x !== undefined && p.y !== undefined ? { x: p.x, y: p.y } : null;
@@ -79,7 +88,10 @@ export const current = query({
           })),
         )
       ).sort((a, b) => (b.heat ?? -999) - (a.heat ?? -999)),
-      result: result ? { solved: result.solved, guesses: result.guesses, heats: result.heats, practice: !!result.practice } : null,
+      startedAt: player ? await startedAt(ctx, player._id, d, first) : null,
+      result: result
+        ? { solved: result.solved, guesses: result.guesses, heats: result.heats, practice: !!result.practice, seconds: result.seconds ?? null }
+        : null,
       answer: finished ? { layer: daily.layer, n: daily.n, place: await at(daily.layer, daily.n) } : null,
       players: all.length,
       solvers: all.filter((r) => r.solved).length,
@@ -134,7 +146,10 @@ async function settle(ctx: MutationCtx, playerId: Doc<"players">["_id"], daily: 
   if ((hit < 0 && gs.length < LIMITS.guesses) || used.some((g) => g.status !== "done")) return;
   const solved = hit >= 0;
   const practice = gs.some((g) => g.practice);
-  await ctx.db.insert("results", { playerId, date: daily.date, solved, guesses: used.length, heats: used.map((g) => g.heat ?? 0), practice });
+  // the clock stops when the last counted guess was made, not when the GPU got round to scoring it
+  const start = await startedAt(ctx, playerId, daily.date, gs[0]?._creationTime);
+  const seconds = start === null ? undefined : Math.round((used[used.length - 1]._creationTime - start) / 1000);
+  await ctx.db.insert("results", { playerId, date: daily.date, solved, guesses: used.length, heats: used.map((g) => g.heat ?? 0), practice, seconds });
   await reveal(ctx, playerId, daily);
   if (practice) return;
   const p = (await ctx.db.get(playerId))!;
@@ -162,6 +177,20 @@ async function reveal(ctx: MutationCtx, playerId: Doc<"players">["_id"], daily: 
   if (!(await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", daily.key)).unique()))
     await enqueue(ctx, "profile", `profile:${daily.key}`, { layer: daily.layer, n: daily.n }, 1);
 }
+
+// Starts this player's solve clock on a puzzle the first time they open it. Signed-out visitors and players who
+// already finished are ignored, so the page can call it on every visit.
+export const open = mutation({
+  args: { date: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const player = await playerFor(ctx);
+    const date = args.date ?? today();
+    if (!player || date > today() || !(await dailyFor(ctx, date))) return;
+    const has = (t: "opens" | "results") =>
+      ctx.db.query(t).withIndex("by_player_date", (q) => q.eq("playerId", player._id).eq("date", date)).first();
+    if (!(await has("opens")) && !(await has("results"))) await ctx.db.insert("opens", { playerId: player._id, date });
+  },
+});
 
 // A guess at today's puzzle, or with `date` at a past one for practice: scored the same way, but it pays no points and
 // doesn't touch the streak.

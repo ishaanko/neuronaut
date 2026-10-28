@@ -5,7 +5,7 @@ import { MODEL } from "./lib";
 
 // Operator tools, run with `npx convex run admin:<name>`. Not callable from the client.
 
-// Drops the puzzles from `from` on (with their guesses and results) so the hourly cron generates new ones.
+// Drops the puzzles from `from` on (with their guesses, results and opens) so the hourly cron generates new ones.
 export const resetDailies = internalMutation({
   args: { from: v.string() },
   handler: async (ctx, { from }) => {
@@ -13,6 +13,7 @@ export const resetDailies = internalMutation({
     for (const d of ds) {
       for (const g of await ctx.db.query("guesses").filter((q) => q.eq(q.field("date"), d.date)).collect()) await ctx.db.delete(g._id);
       for (const r of await ctx.db.query("results").withIndex("by_date", (q) => q.eq("date", d.date)).collect()) await ctx.db.delete(r._id);
+      for (const o of await ctx.db.query("opens").filter((q) => q.eq(q.field("date"), d.date)).collect()) await ctx.db.delete(o._id);
       await ctx.db.delete(d._id);
     }
     return ds.length;
@@ -38,7 +39,7 @@ export const resetPlayers = internalMutation({
       const p = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", c.key)).unique();
       if (p) await ctx.db.patch(p._id, { caught: false });
     }
-    for (const t of ["scans", "catches", "guesses", "results", "entries", "players"] as const)
+    for (const t of ["scans", "catches", "guesses", "results", "opens", "entries", "players"] as const)
       for (const d of await ctx.db.query(t).collect()) {
         await ctx.db.delete(d._id);
         n++;
@@ -76,6 +77,7 @@ export const removePlayer = internalMutation({
       ...(await ctx.db.query("scans").withIndex("by_player", (q) => q.eq("playerId", p._id)).collect()),
       ...(await ctx.db.query("guesses").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
       ...(await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
+      ...(await ctx.db.query("opens").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
       ...(await ctx.db.query("entries").withIndex("by_player_bounty", (q) => q.eq("playerId", p._id)).collect()),
       ...(await ctx.db.query("experiments").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()),
     ];
