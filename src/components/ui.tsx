@@ -30,11 +30,11 @@ export function NeuronInput({ layer, n, onLayer, onN }: { layer: string; n: stri
     <div className="flex items-end gap-2">
       <label className="block">
         <span className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-dim">Layer 0-{MODEL.layers - 1}</span>
-        <Input value={layer} onChange={(e) => onLayer(e.target.value.replace(/\D/g, "").slice(0, 2))} className="w-20 text-center font-mono" inputMode="numeric" aria-label="layer" />
+        <Input value={layer} onChange={(e) => onLayer(e.target.value.replace(/\D/g, "").slice(0, 2))} className="w-16 text-center font-mono" inputMode="numeric" aria-label="layer" />
       </label>
       <label className="block">
         <span className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-dim">Neuron 0-{MODEL.width - 1}</span>
-        <Input value={n} onChange={(e) => onN(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-28 text-center font-mono" inputMode="numeric" aria-label="neuron" />
+        <Input value={n} onChange={(e) => onN(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-24 text-center font-mono" inputMode="numeric" aria-label="neuron" />
       </label>
     </div>
   );
