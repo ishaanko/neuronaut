@@ -23,7 +23,11 @@ export async function enqueue(
     .withIndex("by_key", (q) => q.eq("key", key))
     .filter((q) => q.or(q.eq(q.field("status"), "pending"), q.eq(q.field("status"), "running")))
     .first();
-  if (open) return open._id;
+  if (open) {
+    // someone more urgent now waits on it too (a player on a guest's job, say): move it up to them
+    if (open.status === "pending" && priority < open.priority) await ctx.db.patch(open._id, { priority });
+    return open._id;
+  }
   if (by) {
     const mine = async (status: "pending" | "running") =>
       (await ctx.db.query("jobs").withIndex("by_by_status", (q) => q.eq("by", by).eq("status", status)).take(GPU.perPlayer)).length;

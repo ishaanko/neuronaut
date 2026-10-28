@@ -10,6 +10,7 @@ import {
   cosine,
   dailyNumber,
   dailyPlayer,
+  GPU,
   guestArg,
   guestPlayer,
   heat,
@@ -220,8 +221,12 @@ export const guess = mutation({
     if (!(await ctx.db.query("scans").withIndex("by_player_key", (q) => q.eq("playerId", player._id).eq("key", key)).first()))
       await ctx.db.insert("scans", { playerId: player._id, key, layer, n, date, source: "guess" });
     const prof = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", key)).unique();
-    if (prof) await resolve(ctx, (await ctx.db.get(id))!, prof.embedding, daily);
-    else await enqueue(ctx, "profile", `profile:${key}`, { layer, n }, player.guest ? GUEST_PRIORITY : 0, player._id);
+    if (prof) return await resolve(ctx, (await ctx.db.get(id))!, prof.embedding, daily);
+    if (player.guest) {
+      const waiting = await ctx.db.query("guesses").withIndex("by_key_status", (q) => q.eq("key", key).eq("status", "pending")).take(GPU.waiters + 1);
+      if (waiting.length > GPU.waiters) throw new ConvexError("The GPU is busy right now. Try again in a minute.");
+    }
+    await enqueue(ctx, "profile", `profile:${key}`, { layer, n }, player.guest ? GUEST_PRIORITY : 0, player._id);
   },
 });
 

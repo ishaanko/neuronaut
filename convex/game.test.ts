@@ -121,6 +121,18 @@ describe("GPU budget", () => {
     await expect(bob.mutation(api.neurons.scan, { layer: 2, n: 2 })).resolves.toMatchObject({ layer: 2, n: 2 });
   });
 
+  test("guests' jobs never ride in a player's batch, and a player waiting on a guest's job moves it up", async () => {
+    const { t, player } = await setup();
+    await withDaily(t);
+    for (let i = 0; i < 3; i++) await t.mutation(api.daily.guess, { layer: 1, n: i, guest: `guest-token-${i}`.padEnd(16, "x") });
+    const alice = await player("alice");
+    await alice.mutation(api.neurons.scan, { layer: 1, n: 0 }); // the neuron guest 0 is already waiting on
+    await alice.mutation(api.neurons.scan, { layer: 2, n: 2 });
+    const claim = () => t.mutation(api.worker.claim, { secret: SECRET, max: 24 });
+    expect((await claim()).map((j) => j.args)).toEqual([{ layer: 1, n: 0 }, { layer: 2, n: 2 }]);
+    expect((await claim()).map((j) => j.args)).toEqual([{ layer: 1, n: 1 }, { layer: 1, n: 2 }]);
+  });
+
   test("a scan of an already measured neuron is never refused", async () => {
     const { t, player, putProfiles } = await setup();
     await putProfiles([profile(3, 3, axis(3))]);
