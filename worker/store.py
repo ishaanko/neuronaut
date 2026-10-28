@@ -10,6 +10,7 @@ cards.jsonl is append-only (one line per measurement, the last line for a neuron
 """
 import json
 import os
+import threading
 
 import numpy as np
 
@@ -32,6 +33,7 @@ class Store:
                     self.offsets[(c["layer"], c["n"])] = pos
                     pos += len(line)
         self.cards = open(self.cards_path, "ab")
+        self.lock = threading.Lock()  # the worker's profile lane reads while the sweep writes
 
     @staticmethod
     def _map(path, dtype, shape):
@@ -48,24 +50,26 @@ class Store:
     def put(self, profiles):
         """Writes the card line first, then the embedding and done flag, so a crash between them only costs a
         re-measure."""
-        for p in profiles:
-            l, n = int(p["layer"]), int(p["n"])
-            card = {k: p[k] for k in ("texts", "words", "z", "nll", "distinct")} | {"layer": l, "n": n}
-            self.offsets[(l, n)] = self.cards.tell()
-            self.cards.write((json.dumps(card, ensure_ascii=False) + "\n").encode())
-            self.emb[l, n] = np.asarray(p["embedding"], np.float32)
-            self.done[l, n] = True
-        self.cards.flush()
-        self.emb.flush()
-        self.done.flush()
+        with self.lock:
+            for p in profiles:
+                l, n = int(p["layer"]), int(p["n"])
+                card = {k: p[k] for k in ("texts", "words", "z", "nll", "distinct")} | {"layer": l, "n": n}
+                self.offsets[(l, n)] = self.cards.tell()
+                self.cards.write((json.dumps(card, ensure_ascii=False) + "\n").encode())
+                self.emb[l, n] = np.asarray(p["embedding"], np.float32)
+                self.done[l, n] = True
+            self.cards.flush()
+            self.emb.flush()
+            self.done.flush()
 
     def get(self, layer, n):
-        if not self.done[layer, n]:
-            return None
-        with open(self.cards_path, "rb") as f:
-            f.seek(self.offsets[(layer, n)])
-            c = json.loads(f.readline())
-        return c | {"embedding": self.emb[layer, n].astype(np.float32).tolist()}
+        with self.lock:
+            if not self.done[layer, n]:
+                return None
+            with open(self.cards_path, "rb") as f:
+                f.seek(self.offsets[(layer, n)])
+                c = json.loads(f.readline())
+            return c | {"embedding": self.emb[layer, n].astype(np.float32).tolist()}
 
     def ladder(self, embedding, exclude=None):
         """Cosines of every measured neuron to `embedding`, sorted high to low and sampled at `ranks`: every rank up to

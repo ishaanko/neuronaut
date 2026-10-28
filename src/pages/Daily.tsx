@@ -33,6 +33,9 @@ function useNow(on: boolean) {
   return now;
 }
 
+const SLOW_MS = 10_000; // a guess normally scores in about a second; past this, check whether the worker is up
+const OFFLINE_MS = 3 * 60_000; // the worker checks in every minute (worker:heartbeat)
+
 // Time until the next puzzle (00:00 UTC).
 function untilNext(now: number) {
   const next = new Date(now);
@@ -214,7 +217,12 @@ export function Daily() {
   const finished = !!d?.result;
   // out of guesses but the last one is still scoring: the time is already fixed at that guess
   const lastAt = d && d.guesses.length >= d.limit ? Math.max(...d.guesses.map((g) => g.at)) : null;
-  const now = useNow(!!d?.startedAt && !finished && lastAt === null);
+  const scoring = !!d?.guesses.some((g) => g.status === "pending");
+  const now = useNow((!!d?.startedAt && !finished && lastAt === null) || scoring);
+  // a guess still scoring after SLOW_MS: either the GPU queue is long or the worker is down, and the heartbeat says which
+  const slow = !!d?.guesses.some((g) => g.status === "pending" && now - g.at > SLOW_MS);
+  const seen = useQuery(api.worker.seen, slow ? {} : "skip");
+  const offline = slow && seen !== undefined && (seen === null || now - seen > OFFLINE_MS);
 
   // start the solve clock the first time a player or guest sees this puzzle
   const needsOpen = settled && (!!me || !signedIn) && !!d && !finished && d.startedAt === null;
@@ -409,7 +417,11 @@ export function Daily() {
                         className="grid w-full grid-cols-[4.75rem_1fr_2rem_3.5rem] items-center gap-2 px-2 py-2.5 text-left hover:bg-card sm:gap-3"
                       >
                         <span className="font-mono text-sm">{dexNo(g.layer, g.n)}</span>
-                        {g.status === "pending" ? <span className="text-sm text-faint">measuring…</span> : <HeatBar heat={g.heat} correct={g.correct} />}
+                        {g.status === "pending" ? (
+                          <span className="text-sm text-faint">{offline ? "worker offline, scores when it's back" : "measuring…"}</span>
+                        ) : (
+                          <HeatBar heat={g.heat} correct={g.correct} />
+                        )}
                         <span className="text-right font-mono font-medium tabular-nums">{g.status === "pending" ? "" : g.correct ? "hit" : g.heat}</span>
                         <span className="text-right font-mono text-sm tabular-nums text-dim">
                           {g.status === "pending" || g.rank === null || g.correct ? "" : rankText(g.rank)}

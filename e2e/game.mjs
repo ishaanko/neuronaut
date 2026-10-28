@@ -1,6 +1,7 @@
 // End-to-end run of the whole game against a live stack (Convex, the GPU worker, Vite), in a real browser:
 // play today's daily to a solve as a guest, sign up and keep that solve, predict and scan a neuron and catch it, replay
-// yesterday's daily for practice, see the map, run a lab experiment, enter a bounty and get judged. Also
+// yesterday's daily for practice, see the map, run a lab experiment, enter a bounty and get judged (and a second guest's
+// guess scores while the judge holds the GPU). Also
 // checks that future puzzles stay hidden and that a NaN bounty dose is refused, straight against the backend.
 //
 //   node e2e/game.mjs [--url http://127.0.0.1:5173]                                   # the local stack
@@ -27,6 +28,7 @@ mkdirSync(out, { recursive: true });
 const report = { url, deployment: deployment ?? "local", steps: [] };
 const handle = `e2e_${Math.random().toString(36).slice(2, 8)}`;
 const guest = `${handle}_guest_token`; // the browser's guest token (src/lib/guest.ts), named so cleanup can find it
+const guest2 = `${handle}_guest2_token`; // a second guest who guesses while a bounty is judged
 
 const keys = Object.fromEntries(
   readFileSync(".env.clerk.local", "utf8").split("\n").filter((l) => l.includes("=")).map((l) => l.split(/=(.*)/s).slice(0, 2)),
@@ -166,7 +168,7 @@ try {
     return { yesterday, points: after };
   });
 
-  await step("bounty: enter and get judged", async () => {
+  await step("bounty: enter and get judged, and a guess scores meanwhile", async () => {
     await page.goto(url + "/bounties");
     await page.getByText("Lost at Sea").first().click();
     await page.getByRole("heading", { name: "Lost at Sea" }).waitFor();
@@ -174,9 +176,26 @@ try {
     await page.getByLabel("neuron", { exact: true }).fill("8663");
     await page.getByLabel("dose").fill("0.6");
     await page.getByRole("button", { name: "Submit" }).click();
-    await page.getByText(/concept -?\d/).waitFor({ timeout: 120000 });
+    // judging takes ~2 min on the GPU; a guess on a random neuron (likely not yet in Convex, so a profile job) must not
+    // wait behind it: the worker answers guesses from the sweep's store on a lane of its own
+    const other = await browser.newPage();
+    await other.addInitScript((g) => {
+      localStorage.setItem("neuronaut:seen-howto", "1");
+      localStorage.setItem("neuronaut:guest", g);
+    }, guest2);
+    await other.goto(url + "/daily");
+    const [l, n] = [Math.floor(Math.random() * 32), Math.floor(Math.random() * 9216)];
+    const t0 = Date.now();
+    await other.getByLabel("layer", { exact: true }).fill(String(l));
+    await other.getByLabel("neuron", { exact: true }).fill(String(n));
+    await other.getByRole("button", { name: "Guess", exact: true }).click();
+    await other.waitForFunction(() => document.querySelector("[data-guess]") && !document.body.innerText.includes("measuring"), null, { timeout: 20000 });
+    const guessSeconds = (Date.now() - t0) / 1000;
+    await other.close();
+    if (await page.getByText(/concept -?\d/).count()) throw new Error("the entry was judged before the guess could show it didn't wait");
+    await page.getByText(/concept -?\d/).waitFor({ timeout: 180000 });
     const entry = await page.getByText(/concept -?\d/).locator("..").innerText();
-    return { entry: entry.replace(/\s+/g, " ") };
+    return { entry: entry.replace(/\s+/g, " "), guess: `${l}/${n}`, guessSeconds };
   });
 
   await step("map: visited neurons show up", async () => {
@@ -246,6 +265,7 @@ try {
     // the guest row became the player on sign-up; if the run stopped before that, remove the guest row instead
     const removed = convex("admin:removePlayer", { handle }) || convex("admin:removePlayer", { handle: `guest|${guest}` });
     if (!removed && report.steps[0]?.ok) throw new Error(`no player ${handle} or guest to remove`);
+    convex("admin:removePlayer", { handle: `guest|${guest2}` }); // absent if the bounty step didn't get that far
   } catch (e) {
     errs.push(`player: ${String(e?.message ?? e).split("\n")[0]}`);
   }

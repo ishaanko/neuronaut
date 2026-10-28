@@ -1,14 +1,51 @@
 #!/usr/bin/env bash
-# Starts the local stack as systemd user services, so it outlives the terminal or agent session that started it and
-# restarts on a crash: Convex, Vite and the GPU worker (sweeping). Logs go to logs/.
+# Runs the stack as systemd user services, so it outlives the terminal or agent session that started it and restarts
+# on a crash. Logs go to logs/.
 #
-#   ./up.sh            # start (or restart) everything
-#   ./up.sh stop       # stop everything
-#   WORKER_ENV=.env.prod.local ./up.sh    # the worker serves the deployment in worker/.env.prod.local instead
+#   ./up.sh              # dev: Convex, Vite and a GPU worker (sweeping) against the local backend; restarts them all
+#   ./up.sh stop         # stop the dev stack
+#   ./up.sh prod         # (re)install and start the production worker (worker/.env.prod.local)
+#   ./up.sh prod stop    # stop and disable it
 #   systemctl --user status 'neuronaut-*'
+#
+# The production worker is a real unit file, enabled, so it comes back after a reboot or WSL shutdown (needs
+# `loginctl enable-linger`). It has its own name, so the dev commands never touch it. Both workers share the GPU: while
+# the dev one runs, judging on prod is slower, but guesses come from the store and don't need the GPU.
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT=$PWD
+
+if [[ "${1:-}" == prod ]]; then
+  UNIT=neuronaut-prod-worker
+  systemctl --user stop "$UNIT" 2>/dev/null || true
+  if [[ "${2:-}" == stop ]]; then
+    systemctl --user disable "$UNIT" 2>/dev/null || true
+    exit 0
+  fi
+  mkdir -p logs ~/.config/systemd/user
+  cat > ~/.config/systemd/user/$UNIT.service <<UNITFILE
+[Unit]
+Description=Neuronaut GPU worker (production)
+
+[Service]
+WorkingDirectory=$ROOT/worker
+EnvironmentFile=$ROOT/worker/.env.prod.local
+Environment="PATH=$PATH" "HOME=$HOME"
+ExecStart=$(command -v uv) run python main.py --sweep
+Restart=always
+RestartSec=10
+StandardOutput=append:$ROOT/logs/prod-worker.log
+StandardError=append:$ROOT/logs/prod-worker.log
+
+[Install]
+WantedBy=default.target
+UNITFILE
+  systemctl --user daemon-reload
+  systemctl --user enable --now "$UNIT"
+  systemctl --user --no-pager status "$UNIT" | head -3
+  exit 0
+fi
+
 UNITS=(neuronaut-convex neuronaut-vite neuronaut-worker)
 
 for u in "${UNITS[@]}"; do
@@ -35,5 +72,5 @@ run() {  # unit, working dir, command...
 
 run neuronaut-convex "$ROOT" env CONVEX_AGENT_MODE=anonymous CONVEX_TMPDIR="$ROOT/.tmp" bunx convex dev --tail-logs always
 run neuronaut-vite "$ROOT" bunx vite --port 5173 --host 127.0.0.1
-run neuronaut-worker "$ROOT/worker" bash -c "set -a; . ./${WORKER_ENV:-.env.local}; set +a; exec uv run python main.py --sweep"
+run neuronaut-worker "$ROOT/worker" bash -c "set -a; . ./.env.local; set +a; exec uv run python main.py --sweep"
 systemctl --user --no-pager list-units 'neuronaut-*'
