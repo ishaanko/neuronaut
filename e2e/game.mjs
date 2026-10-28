@@ -176,23 +176,28 @@ try {
     await page.getByLabel("neuron", { exact: true }).fill("8663");
     await page.getByLabel("dose").fill("0.6");
     await page.getByRole("button", { name: "Submit" }).click();
-    // judging takes ~2 min on the GPU; a guess on a random neuron (likely not yet in Convex, so a profile job) must not
-    // wait behind it: the worker answers guesses from the sweep's store on a lane of its own
+    // judging takes ~2 min on the GPU; a guess must not wait behind it: the worker answers guesses from the sweep's
+    // store on a lane of its own. The guess is on a neuron Convex hasn't measured, so it needs the worker.
+    const deadline = Date.now() + 30000;
+    while (!convex("admin:running", {}).includes("judge"))
+      if (Date.now() > deadline) throw new Error("the judge never started");
+    let l, n;
+    do [l, n] = [Math.floor(Math.random() * 32), Math.floor(Math.random() * 9216)];
+    while (convex("admin:profiled", { layer: l, n }));
     const other = await browser.newPage();
     await other.addInitScript((g) => {
       localStorage.setItem("neuronaut:seen-howto", "1");
       localStorage.setItem("neuronaut:guest", g);
     }, guest2);
     await other.goto(url + "/daily");
-    const [l, n] = [Math.floor(Math.random() * 32), Math.floor(Math.random() * 9216)];
     const t0 = Date.now();
     await other.getByLabel("layer", { exact: true }).fill(String(l));
     await other.getByLabel("neuron", { exact: true }).fill(String(n));
     await other.getByRole("button", { name: "Guess", exact: true }).click();
-    await other.waitForFunction(() => document.querySelector("[data-guess]") && !document.body.innerText.includes("measuring"), null, { timeout: 20000 });
+    await other.locator("[data-guess] .tabular-nums", { hasText: /^(\d+|hit)$/ }).waitFor({ timeout: 20000 }); // its heat
     const guessSeconds = (Date.now() - t0) / 1000;
     await other.close();
-    if (await page.getByText(/concept -?\d/).count()) throw new Error("the entry was judged before the guess could show it didn't wait");
+    if (!convex("admin:running", {}).includes("judge")) throw new Error("the judge finished before the guess scored");
     await page.getByText(/concept -?\d/).waitFor({ timeout: 180000 });
     const entry = await page.getByText(/concept -?\d/).locator("..").innerText();
     return { entry: entry.replace(/\s+/g, " "), guess: `${l}/${n}`, guessSeconds };

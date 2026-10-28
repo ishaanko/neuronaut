@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { COVERAGE_BINS, globalStats } from "./jobs";
-import { MODEL } from "./lib";
+import { MODEL, neuronKey } from "./lib";
 
 // Operator tools, run with `npx convex run admin:<name>`. Not callable from the client.
 
@@ -27,6 +27,20 @@ export const answer = internalQuery({
     const d = await ctx.db.query("dailies").withIndex("by_date", (q) => q.eq("date", date)).unique();
     return d ? { layer: d.layer, n: d.n } : null;
   },
+});
+
+// Whether Convex already has a neuron's measurements. The E2E guesses one that doesn't, so its guess needs the worker.
+export const profiled = internalQuery({
+  args: { layer: v.number(), n: v.number() },
+  handler: async (ctx, { layer, n }) =>
+    !!(await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", neuronKey(layer, n))).unique()),
+});
+
+// The kinds of jobs the worker is running right now.
+export const running = internalQuery({
+  args: {},
+  handler: async (ctx) =>
+    (await ctx.db.query("jobs").withIndex("by_status_priority", (q) => q.eq("status", "running")).collect()).map((j) => j.kind),
 });
 
 // Deletes every player and what they did (scans, catches, guesses, results, entries), and un-catches their neurons.

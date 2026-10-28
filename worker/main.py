@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import datetime
 import os
+import queue
 import re
 import threading
 
@@ -55,6 +56,10 @@ HEARTBEAT_S = 60  # how often the worker checks in (worker:heartbeat), so a hang
 STORE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", f"sweep-{MODEL.replace('/', '--')}")
 
 
+def neuron(job):
+    return int(job["args"]["layer"]), int(job["args"]["n"])
+
+
 def as_profile(p):
     return {k: p[k] for k in ("layer", "n", "texts", "words", "z", "nll", "distinct", "embedding")}
 
@@ -63,7 +68,8 @@ class Worker:
     def __init__(self, url, secret):
         self.url, self.secret = url, secret
         self.local = threading.local()
-        self.gpu = threading.Lock()  # the profile lane only takes it for a neuron the sweep hasn't measured
+        self.gpu = threading.Lock()
+        self.misses = queue.Queue()  # profile jobs for neurons not in the store yet (measure_misses)
         self.eng = Engine(MODEL)
         self.lens = Lens()
         self.store = Store(STORE, *self.lens.kl.shape)
@@ -106,17 +112,37 @@ class Worker:
                 self.call("mutation", "worker:fail", id=j["id"], error=f"{type(e).__name__}: {e}")
 
     def profiles(self, jobs):
-        neurons = [(int(j["args"]["layer"]), int(j["args"]["n"])) for j in jobs]
+        """Answers neurons the sweep measured straight from the store. The rest go to measure_misses, so they never hold
+        up the next guess."""
+        known = [j for j in jobs if self.store.has(*neuron(j))]
+        for j in jobs:
+            if j not in known:
+                self.misses.put(j)
+        if known:
+            t = time.time()
+            self.call("mutation", "worker:putProfiles", jobIds=[j["id"] for j in known],
+                      profiles=[as_profile(self.store.get(*neuron(j))) for j in known])
+            print(f"profiled {len(known)} from the store in {time.time() - t:.1f}s", flush=True)
+
+    def measure_misses(self):
+        """Measures guessed neurons the sweep hasn't reached yet, on a thread of their own, once the GPU is free."""
+        while True:
+            jobs = [self.misses.get()]
+            while not self.misses.empty():
+                jobs.append(self.misses.get())
+            try:
+                self.guard(jobs, self.measure)
+            except Exception:  # Convex unreachable even for worker:fail
+                traceback.print_exc()
+                self.reconnect()
+
+    def measure(self, jobs):
         t = time.time()
-        known = {k: self.store.get(*k) for k in neurons if self.store.has(*k)}
-        fresh = []
-        if len(known) < len(neurons):
-            with self.gpu:
-                fresh = self.eng.profile([k for k in neurons if k not in known])
+        with self.gpu:
+            fresh = self.eng.profile([neuron(j) for j in jobs])
         self.store.put(fresh)
-        res = list(known.values()) + fresh
-        self.call("mutation", "worker:putProfiles", jobIds=[j["id"] for j in jobs], profiles=[as_profile(p) for p in res])
-        print(f"profiled {len(res)} in {time.time() - t:.1f}s", flush=True)
+        self.call("mutation", "worker:putProfiles", jobIds=[j["id"] for j in jobs], profiles=[as_profile(p) for p in fresh])
+        print(f"profiled {len(fresh)} on the GPU in {time.time() - t:.1f}s", flush=True)
 
     def combo(self, job):
         """A lab experiment: two pushes alone and together while the model reads the same normal replies (Engine.forced),
@@ -301,8 +327,7 @@ class Worker:
                 self.wait(GPU_KINDS)
 
     def profile_lane(self):
-        """Answers guesses on a thread of their own. A neuron the sweep measured is a store lookup (~0.1 s); any other
-        waits for the GPU."""
+        """Answers guesses on a thread of their own: a neuron the sweep measured is a store lookup (~0.1 s)."""
         while True:
             try:
                 jobs = self.call("mutation", "worker:claim", max=24, kinds=["profile"])
@@ -331,6 +356,7 @@ def main():
     a = ap.parse_args()
     w = Worker(os.environ["CONVEX_URL"], os.environ["WORKER_SECRET"])
     threading.Thread(target=w.profile_lane, daemon=True).start()
+    threading.Thread(target=w.measure_misses, daemon=True).start()
     threading.Thread(target=w.heartbeat, daemon=True).start()
     while True:
         try:
