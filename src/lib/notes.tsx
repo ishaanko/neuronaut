@@ -135,7 +135,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
           <div className="text-sm text-dim">New field note</div>
           <div className="mt-1 text-lg font-semibold">{note.title}</div>
           <div className="mt-3 flex gap-2">
-            <Link to={`/notes#${note.id}`} onClick={() => setFresh(null)} className="press inline-flex h-10 items-center rounded-[3px] bg-accent px-4 text-sm font-medium text-accent-fg">
+            <Link to={`/notes#${note.id}`} onClick={() => setFresh(null)} className="press inline-flex h-10 items-center rounded-[3px] bg-accent px-4 text-sm font-medium text-accent-fg hover:bg-accent-hover">
               Read it
             </Link>
             <button onClick={() => setFresh(null)} className="press h-10 rounded-[3px] px-3 text-sm text-dim hover:text-fg">

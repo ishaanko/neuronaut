@@ -59,7 +59,7 @@ export function Nav() {
             </>
           ) : signedIn ? (
             <>
-              <button className="press h-9 shrink-0 whitespace-nowrap rounded-[3px] bg-accent px-3.5 font-medium text-accent-fg" onClick={() => requireJoin()}>
+              <button className="press h-9 shrink-0 whitespace-nowrap rounded-[3px] bg-accent px-3.5 font-medium text-accent-fg hover:bg-accent-hover" onClick={() => requireJoin()}>
                 Pick a handle
               </button>
               <button className="shrink-0 whitespace-nowrap text-dim hover:text-fg" onClick={signOut}>
@@ -67,7 +67,7 @@ export function Nav() {
               </button>
             </>
           ) : (
-            <button className="press h-9 shrink-0 whitespace-nowrap rounded-[3px] bg-accent px-3.5 font-medium text-accent-fg" onClick={signIn}>
+            <button className="press h-9 shrink-0 whitespace-nowrap rounded-[3px] bg-accent px-3.5 font-medium text-accent-fg hover:bg-accent-hover" onClick={signIn}>
               Sign in
             </button>
           )}

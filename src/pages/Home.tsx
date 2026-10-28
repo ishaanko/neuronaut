@@ -66,7 +66,7 @@ export function Home() {
               it's a doctor, or falls apart. Every day one of them is hidden, and you get {LIMITS.guesses} guesses to find it.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Link to="/daily" className="press inline-flex h-12 items-center rounded-[3px] bg-accent px-6 font-mono text-[15px] font-medium text-accent-fg hover:bg-[#3a342c]">
+              <Link to="/daily" className="press inline-flex h-12 items-center rounded-[3px] bg-accent px-6 font-mono text-[15px] font-medium text-accent-fg hover:bg-accent-hover">
                 Play daily{daily ? ` Nº ${daily.number}` : ""}
               </Link>
               <button onClick={() => setExample(true)} className="press h-12 rounded-[3px] border border-fg px-5 font-mono text-[15px] font-medium hover:bg-raised">
@@ -87,7 +87,7 @@ export function Home() {
               <HeatChart marks={EXAMPLE.steps.flatMap((st) => (st.guess ? [st.guess] : []))} slots={6} className="mt-2" />
               <figcaption className="text-sm italic text-dim">
                 Fig. 1. A real game of Nº {EXAMPLE.number}, solved in five guesses.{" "}
-                <button onClick={() => setExample(true)} className="not-italic text-fg underline underline-offset-4">
+                <button onClick={() => setExample(true)} className="not-italic text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
                   Watch it
                 </button>
               </figcaption>
