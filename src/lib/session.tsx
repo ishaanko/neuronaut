@@ -4,6 +4,7 @@ import { ConvexError } from "convex/values";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import { createAccountGate, type AccountState } from "./accountGate";
+import { guestToken } from "./guest";
 import { JoinDialog } from "../components/JoinDialog";
 
 export function errorText(e: unknown) {
@@ -12,11 +13,16 @@ export function errorText(e: unknown) {
 
 type Session = {
   signedIn: boolean;
+  settled: boolean; // auth and the player row have loaded, so signedIn and me can be trusted
   me: (typeof api.players.me)["_returnType"] | undefined; // undefined while loading, null without a player
+  guest: string; // pass to the functions guests may use; the backend ignores it for a signed-in caller
   // Resolves true once the caller is a player. Signed out: opens Clerk's sign-in and resolves false (they act again
   // once signed in). Signed in without a handle: asks for one.
   requireJoin: () => Promise<boolean>;
+  // requireJoin for the daily: a signed-out caller plays as a guest, so it resolves true for them too.
+  requirePlay: () => Promise<boolean>;
   signIn: () => void;
+  signUp: () => void;
   signOut: () => void;
 };
 
@@ -29,6 +35,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const { sessionId } = useAuth();
   const me = useQuery(api.players.me, isAuthenticated ? {} : "skip");
   const join = useMutation(api.players.join);
+  const [guest] = useState(guestToken);
   const [gate] = useState(createAccountGate);
   const [asking, setAsking] = useState(false);
   const state: AccountState = isLoading || (isAuthenticated && me === undefined)
@@ -52,13 +59,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (state === "needs-handle") setAsking(true);
   }, [state, sessionId]);
 
-  const requireJoin = useCallback(async () => {
+  const request = useCallback(async () => {
     if (state === "needs-handle") setAsking(true);
-    const outcome = await gate.request();
+    return await gate.request();
+  }, [state, gate]);
+
+  const requireJoin = useCallback(async () => {
+    const outcome = await request();
     // Signed out now, or a click made while auth was loading by someone who turned out to be signed out.
     if (outcome === "signed-out") clerk.openSignIn();
     return outcome === "ready";
-  }, [state, clerk, gate]);
+  }, [request, clerk]);
+
+  const requirePlay = useCallback(async () => {
+    const outcome = await request();
+    return outcome === "ready" || outcome === "signed-out";
+  }, [request]);
 
   const cancel = () => {
     gate.cancel();
@@ -73,9 +89,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider
       value={{
         signedIn: isAuthenticated,
+        settled: state !== "loading",
         me: isAuthenticated ? me : null,
+        guest,
         requireJoin,
+        requirePlay,
         signIn: () => clerk.openSignIn(),
+        signUp: () => clerk.openSignUp(),
         signOut,
       }}
     >
@@ -83,7 +103,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       {asking && isAuthenticated && me === null && (
         <JoinDialog
           key={sessionId}
-          onJoin={(handle) => gate.setup(() => join({ handle }))}
+          onJoin={(handle) => gate.setup(() => join({ handle, guest }))}
           onClose={cancel}
           onSignOut={signOut}
         />

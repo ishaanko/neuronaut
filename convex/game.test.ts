@@ -112,6 +112,30 @@ describe("GPU budget", () => {
     await expect(bob.mutation(api.neurons.scan, { layer: 2, n: 2 })).rejects.toThrow("GPU is busy");
   });
 
+  test("guests minting fresh tokens fill only the guests' queue, never the one players with accounts use", async () => {
+    const { t, player } = await setup();
+    await withDaily(t);
+    for (let i = 0; i < GPU.guests; i++) await t.mutation(api.daily.guess, { layer: 1, n: i, guest: `guest-token-${i}`.padEnd(16, "x") });
+    await expect(t.mutation(api.daily.guess, { layer: 2, n: 0, guest: "one-more-guest-token" })).rejects.toThrow("GPU is busy");
+    const bob = await player("bob");
+    await expect(bob.mutation(api.neurons.scan, { layer: 2, n: 2 })).resolves.toMatchObject({ layer: 2, n: 2 });
+  });
+
+  test("guests' jobs never ride in a player's batch; a player waiting on a guest's job moves it up, within her budget", async () => {
+    const { t, player } = await setup();
+    await withDaily(t);
+    for (let i = 0; i < 3; i++) await t.mutation(api.daily.guess, { layer: 1, n: i, guest: `guest-token-${i}`.padEnd(16, "x") });
+    const alice = await player("alice");
+    await alice.mutation(api.neurons.scan, { layer: 1, n: 0 }); // the neuron guest 0 is already waiting on
+    await alice.mutation(api.neurons.scan, { layer: 2, n: 2 });
+    for (let n = 3; n < GPU.perPlayer + 1; n++) await alice.mutation(api.neurons.scan, { layer: 3, n });
+    // her budget is spent, so she can't promote another guest's job past it
+    await expect(alice.mutation(api.neurons.scan, { layer: 1, n: 1 })).rejects.toThrow("waiting on the GPU");
+    const claim = () => t.mutation(api.worker.claim, { secret: SECRET, max: 24 });
+    expect((await claim()).map((j) => j.args)).toEqual([{ layer: 1, n: 0 }, { layer: 2, n: 2 }, { layer: 3, n: 3 }, { layer: 3, n: 4 }]);
+    expect((await claim()).map((j) => j.args)).toEqual([{ layer: 1, n: 1 }, { layer: 1, n: 2 }]);
+  });
+
   test("a scan of an already measured neuron is never refused", async () => {
     const { t, player, putProfiles } = await setup();
     await putProfiles([profile(3, 3, axis(3))]);

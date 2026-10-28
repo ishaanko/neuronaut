@@ -10,6 +10,7 @@ import { ChartLegend, HeatChart } from "../components/HeatChart";
 import { EXAMPLE } from "../data/example";
 import { Label, NeuronLink, Plate, RarityTag } from "../components/ui";
 import { ago, until } from "../lib/format";
+import { useSession } from "../lib/session";
 
 // A mode in the list under the hero: name, one line on what you do, and its live status.
 function Mode({ to, name, line, status }: { to: string; name: string; line: string; status: string }) {
@@ -24,7 +25,8 @@ function Mode({ to, name, line, status }: { to: string; name: string; line: stri
 
 export function Home() {
   const overview = useQuery(api.neurons.overview);
-  const daily = useQuery(api.daily.current, {});
+  const { guest } = useSession();
+  const daily = useQuery(api.daily.current, { guest });
   const bounties = useQuery(api.bounties.list);
   const [example, setExample] = useState(false);
   const open = bounties?.filter((b) => b.state === "open") ?? [];

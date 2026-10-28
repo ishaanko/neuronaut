@@ -16,8 +16,8 @@ export function Neuron() {
   const layer = Number(params.layer);
   const n = Number(params.n);
   const valid = Number.isInteger(layer) && Number.isInteger(n) && layer >= 0 && layer < MODEL.layers && n >= 0 && n < MODEL.width;
-  const { me, requireJoin } = useSession();
-  const card = useQuery(api.neurons.card, valid ? { layer, n } : "skip");
+  const { me, guest, requireJoin } = useSession();
+  const card = useQuery(api.neurons.card, valid ? { layer, n, guest } : "skip");
   const overview = useQuery(api.neurons.overview);
   const scan = useMutation(api.neurons.scan);
   const catchNeuron = useAction(api.neurons.catchNeuron);

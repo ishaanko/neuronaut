@@ -1,11 +1,12 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { LIMITS, playerFor, today, type Rarity } from "./lib";
+import { LIMITS, NEW_PLAYER, guestArg, guestFor, playerFor, today, type Rarity } from "./lib";
 
-// A signed-in Clerk user picks a handle once; that makes them a player.
+// A signed-in Clerk user picks a handle once; that makes them a player. With `guest`, the guest row they played on
+// becomes that player, keeping its guesses, results, points and streak.
 export const join = mutation({
-  args: { handle: v.string() },
-  handler: async (ctx, { handle }) => {
+  args: { handle: v.string(), guest: guestArg },
+  handler: async (ctx, { handle, guest }) => {
     const id = await ctx.auth.getUserIdentity();
     if (!id) throw new ConvexError("Sign in first");
     if (await playerFor(ctx)) throw new ConvexError("You already have a handle");
@@ -13,17 +14,10 @@ export const join = mutation({
     if (!/^[A-Za-z0-9_-]{3,16}$/.test(h)) throw new ConvexError("Handles are 3-16 letters, digits, _ or -");
     const taken = await ctx.db.query("players").withIndex("by_handle", (q) => q.eq("handleLower", h.toLowerCase())).unique();
     if (taken) throw new ConvexError(`${h} is taken`);
-    await ctx.db.insert("players", {
-      handle: h,
-      handleLower: h.toLowerCase(),
-      userId: id.tokenIdentifier,
-      points: 0,
-      caught: 0,
-      dailySolved: 0,
-      streak: 0,
-      bestStreak: 0,
-      bountyWins: 0,
-    });
+    const account = { handle: h, handleLower: h.toLowerCase(), userId: id.tokenIdentifier };
+    const was = await guestFor(ctx, guest);
+    if (was) await ctx.db.patch(was._id, { ...account, guest: undefined });
+    else await ctx.db.insert("players", { ...account, ...NEW_PLAYER });
     return h;
   },
 });
@@ -61,7 +55,11 @@ export const me = query({
 export const leaderboard = query({
   args: {},
   handler: async (ctx) => {
-    const top = await ctx.db.query("players").withIndex("by_points").order("desc").take(100);
+    const top = await ctx.db
+      .query("players")
+      .withIndex("by_guest_points", (q) => q.eq("guest", undefined))
+      .order("desc")
+      .take(100);
     return top.map((p) => ({
       handle: p.handle,
       points: p.points,
@@ -78,7 +76,7 @@ export const profile = query({
   args: { handle: v.string() },
   handler: async (ctx, { handle }) => {
     const p = await ctx.db.query("players").withIndex("by_handle", (q) => q.eq("handleLower", handle.toLowerCase())).unique();
-    if (!p) return null;
+    if (!p || p.guest) return null;
     const catches = await ctx.db.query("catches").withIndex("by_player", (q) => q.eq("playerId", p._id)).order("desc").collect();
     return {
       handle: p.handle,

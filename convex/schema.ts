@@ -67,7 +67,8 @@ export default defineSchema({
   players: defineTable({
     handle: v.string(),
     handleLower: v.string(),
-    userId: v.string(), // the Clerk identity's tokenIdentifier: one player per sign-in
+    userId: v.string(), // the Clerk identity's tokenIdentifier: one player per sign-in. Guests: "guest|<token>" (lib.ts)
+    guest: v.optional(v.literal(true)), // plays the daily without an account; hidden from the leaderboard
     points: v.number(),
     caught: v.number(),
     dailySolved: v.number(),
@@ -80,7 +81,7 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_handle", ["handleLower"])
-    .index("by_points", ["points"]),
+    .index("by_guest_points", ["guest", "points"]), // accounts (guest unset) by points, without reading guest rows
 
   // A player looking at a neuron's card. source "scan" spends a daily scan; "guess" comes free with a daily guess.
   scans: defineTable({
@@ -118,7 +119,7 @@ export default defineSchema({
     kind: v.union(v.literal("profile"), v.literal("judge"), v.literal("daily"), v.literal("par"), v.literal("combo")),
     key: v.string(),
     args: v.any(),
-    priority: v.number(), // 0 = a player is waiting
+    priority: v.number(), // 0 = a player is waiting, GUEST_PRIORITY (jobs.ts) = a guest is, 1 = background
     status: v.union(v.literal("pending"), v.literal("running"), v.literal("done"), v.literal("failed")),
     startedAt: v.optional(v.number()),
     error: v.optional(v.string()),

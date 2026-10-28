@@ -9,6 +9,7 @@ import "./index.css";
 import { api } from "../convex/_generated/api";
 import { Nav } from "./components/Nav";
 import { NotesProvider } from "./lib/notes";
+import { guestToken } from "./lib/guest";
 import { SessionProvider } from "./lib/session";
 import { Daily } from "./pages/Daily";
 import { Home } from "./pages/Home";
@@ -31,14 +32,15 @@ const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 // Send the landing page's queries as soon as the socket opens instead of after React mounts (~230 ms sooner on a fast
 // machine, around a second on a throttled phone). Signed-in players get a refreshed result once auth arrives.
 const PREWARM = {
-  "/": [api.neurons.overview, api.daily.current, api.bounties.list],
-  "/daily": [api.daily.current],
+  "/": [api.neurons.overview, api.bounties.list],
   "/dex": [api.neurons.overview],
   "/bounties": [api.bounties.list],
   "/map": [api.map.caught],
 } as const;
 for (const query of PREWARM[location.pathname as keyof typeof PREWARM] ?? [])
   convex.prewarmQuery({ query, args: {}, extendSubscriptionFor: 10_000 });
+if (location.pathname === "/" || location.pathname === "/daily")
+  convex.prewarmQuery({ query: api.daily.current, args: { guest: guestToken() }, extendSubscriptionFor: 10_000 });
 
 // Clerk's sign-in modal in the site's colors.
 function Clerk({ children }: { children: ReactNode }) {
