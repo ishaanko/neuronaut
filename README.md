@@ -82,6 +82,7 @@ where `worker/.env.prod.local` holds the prod `CONVEX_URL` and `WORKER_SECRET`. 
 | `convex/` | players, scans, catches, dailies, bounties and the job queue. `rules.ts` holds the game numbers |
 | `worker/` | pulls jobs from Convex, runs the model with HF transformers, writes results back. It needs no open port |
 | `e2e/game.mjs` | plays every mode in a real browser |
+| `e2e/session/` | offline browser checks for sign-in and account-switch races in `SessionProvider` |
 
 ## Testing
 
@@ -90,7 +91,8 @@ node e2e/game.mjs [--url http://127.0.0.1:5173]
 ```
 
 Unit tests cover the logic that's hard to see from the UI: `bun run test` (backend, through `convex-test`) and
-`cd worker && uv run pytest` (glitch detection, the sweep store).
+`cd worker && uv run pytest` (glitch detection, the sweep store). `node e2e/session/run.mjs` checks session races
+(account switches, sign-out mid-join) against fake Clerk and Convex hooks, with no network.
 
 The E2E joins, scans and catches a neuron, solves today's daily and enters a bounty. Screenshots and `report.json` land in
 `e2e/artifacts/<timestamp>/`. On WSL without Chrome's system libraries, point `LD_LIBRARY_PATH` at a local copy.
