@@ -16,7 +16,7 @@ export function HowToPlay({ open, onClose }: { open: boolean; onClose: () => voi
       <div className="mt-5 border-t border-line pt-5">
         <ExampleGame
           end={
-            <Link to="/daily" onClick={onClose} className="press inline-flex h-11 flex-1 items-center justify-center rounded-[3px] bg-accent font-mono text-sm font-medium text-accent-fg hover:bg-[#3a342c]">
+            <Link to="/daily" onClick={onClose} className="press inline-flex h-11 flex-1 items-center justify-center rounded-[3px] bg-accent font-mono text-sm font-medium text-accent-fg hover:bg-accent-hover">
               Play today's neuron
             </Link>
           }

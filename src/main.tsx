@@ -91,7 +91,7 @@ createRoot(document.getElementById("root")!).render(
               <footer className="mx-auto flex max-w-[1120px] flex-wrap gap-x-6 gap-y-2 border-t border-line px-4 py-6 text-sm text-dim sm:px-6">
                 <span>
                   Built on{" "}
-                  <a href="https://github.com/lyramakesmusic/neuron-explorer" className="text-fg underline underline-offset-4">
+                  <a href="https://github.com/lyramakesmusic/neuron-explorer" className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
                     neuron-explorer
                   </a>{" "}
                   by lyramakesmusic

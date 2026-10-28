@@ -287,7 +287,7 @@ export function Daily() {
           <p className="max-w-[68ch] text-dim">
             Read what it said, search for words that stand out, and guess. Heat tells you how close each guess is. You have{" "}
             {d.limit} guesses.{" "}
-            <button className="text-fg underline underline-offset-4" onClick={() => setExample(true)}>
+            <button className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg" onClick={() => setExample(true)}>
               Watch a game
             </button>
           </p>

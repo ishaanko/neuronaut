@@ -139,7 +139,7 @@ export function Bounty() {
             <div className="border-t border-line">
               {b.mine.map((e, i) => (
                 <div key={i} className="border-b border-line py-2">
-                  <button className="flex w-full flex-wrap items-baseline gap-x-4 gap-y-1 text-left font-mono text-sm" onClick={() => setOpen(open === i ? null : i)}>
+                  <button className="-mx-2 flex w-[calc(100%+1rem)] flex-wrap items-baseline gap-x-4 gap-y-1 rounded-[3px] px-2 py-1 text-left font-mono text-sm hover:bg-card" onClick={() => setOpen(open === i ? null : i)}>
                     <span className="flex-1">
                       {e.pushes.map((p) => (
                         <span key={`${p.layer}:${p.n}`} className="mr-3">

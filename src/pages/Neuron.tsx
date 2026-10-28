@@ -97,7 +97,7 @@ export function Neuron() {
           {card.caught && (
             <>
               {" "}· caught by{" "}
-              <Link to={`/t/${card.caught.handle}`} className="font-semibold text-fg underline underline-offset-4">
+              <Link to={`/t/${card.caught.handle}`} className="font-semibold text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
                 {card.caught.handle}
               </Link>{" "}
               for {card.caught.points} pts

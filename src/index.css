@@ -22,6 +22,7 @@
   --color-line-strong: #9d9585;
   --color-accent: #1b1814;
   --color-accent-fg: #f4f0e6;
+  --color-accent-hover: #3a342c;
   --color-rust: #a6481f;
 
   --color-legendary: #9a6b07;
@@ -61,6 +62,12 @@
   select {
     font: inherit;
     color: inherit;
+  }
+
+  /* Tailwind v4 leaves buttons on the arrow cursor; anything clickable gets the hand */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
   }
 
   input[type="number"]::-webkit-inner-spin-button {
