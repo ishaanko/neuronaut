@@ -195,7 +195,9 @@ export function Daily() {
   useUnlock("heat", !!d?.guesses.some((g) => g.status === "done"));
 
   const finished = !!d?.result;
-  const now = useNow(!!d?.startedAt && !finished);
+  // out of guesses but the last one is still scoring: the time is already fixed at that guess
+  const lastAt = d && d.guesses.length >= d.limit ? Math.max(...d.guesses.map((g) => g.at)) : null;
+  const now = useNow(!!d?.startedAt && !finished && lastAt === null);
 
   // start the solve clock the first time a signed-in player sees this puzzle
   const needsOpen = !!me && !!d && !finished && d.startedAt === null;
@@ -271,7 +273,7 @@ export function Daily() {
             label: "Your time",
             value: (
               <span className="font-mono tabular-nums">
-                {d.result ? (d.result.seconds !== null ? clock(d.result.seconds) : "-") : d.startedAt ? clock((now - d.startedAt) / 1000) : "-"}
+                {d.result ? (d.result.seconds !== null ? clock(d.result.seconds) : "-") : d.startedAt ? clock(((lastAt ?? now) - d.startedAt) / 1000) : "-"}
               </span>
             ),
           },
