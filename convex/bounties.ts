@@ -60,6 +60,7 @@ export const get = query({
     return {
       ...s,
       parPushes: closed ? (b.par?.pushes ?? null) : null,
+      promptCount: b.prompts.length, // the prompts themselves stay hidden
       leaderboard: await Promise.all(
         top.slice(0, 50).map(async (e) => ({
           handle: (await ctx.db.get(e.playerId))?.handle ?? "?",

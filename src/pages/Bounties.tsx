@@ -2,7 +2,6 @@ import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
-import { JUDGE_PROMPTS } from "../../convex/bountyPool";
 import { efficiency } from "../../convex/rules";
 import { LensSearch } from "../components/LensSearch";
 import { Button, ErrorLine, Input, Label, NeuronInput, NeuronLink, Panel, ScrollX } from "../components/ui";
@@ -102,7 +101,7 @@ export function Bounty() {
         <div className="mt-8">
           <Label className="mb-2">How the judge scores</Label>
           <p className="max-w-[68ch] text-dim">
-            The judge runs your neurons on {JUDGE_PROMPTS.length} hidden questions, then multiplies three numbers between 0 and 1. Score is 1000
+            The judge runs your neurons on {b.promptCount} hidden questions, then multiplies three numbers between 0 and 1. Score is 1000
             times the product.
           </p>
           <dl className="mt-3 max-w-[68ch] divide-y divide-line border-y border-line">
