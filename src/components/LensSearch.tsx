@@ -1,7 +1,7 @@
 import { useQuery } from "convex/react";
 import { useDeferredValue, useState } from "react";
 import { api } from "../../convex/_generated/api";
-import { Input, NeuronLink, Tokens } from "./ui";
+import { CjkNote, Input, NeuronLink, Tokens } from "./ui";
 
 // Search every neuron's steer lens (tokens a push makes likely) and logit lens. Free, and the main way to hunt.
 export function LensSearch({ onPick, pickLabel = "Use" }: { onPick?: (layer: number, n: number) => void; pickLabel?: string }) {
@@ -38,6 +38,7 @@ export function LensSearch({ onPick, pickLabel = "Use" }: { onPick?: (layer: num
           )}
         </div>
       )}
+      {dq && results && <CjkNote tokens={results.flatMap((r) => r.steer)} className="mt-2" />}
     </div>
   );
 }

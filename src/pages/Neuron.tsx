@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 import { EFFECTS, type Effect, MODEL, POINTS, PREDICT_POINTS } from "../../convex/rules";
 import { BehaviorMap, ZONES, zoneTint } from "../components/BehaviorMap";
 import { Replies } from "../components/Replies";
-import { Button, ErrorLine, Input, Label, Plate, RarityTag, Tokens } from "../components/ui";
+import { Button, CjkNote, ErrorLine, Input, Label, Plate, RarityTag, Tokens } from "../components/ui";
 import { EFFECT_TEXT } from "../lib/effects";
 import { dexNo } from "../lib/format";
 import { useUnlock } from "../lib/notes";
@@ -115,6 +115,7 @@ export function Neuron() {
             <p className="text-sm text-dim">Its output read straight off the last layer</p>
             <Tokens tokens={card.lens} className="mt-2 block text-dim" />
           </div>
+          <CjkNote tokens={[...card.steer, ...card.lens]} className="md:col-span-2" />
         </div>
       </Plate>
 
