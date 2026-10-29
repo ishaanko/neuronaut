@@ -206,7 +206,8 @@ export default defineSchema({
     brief: v.string(),
     maxNeurons: v.number(),
     prompts: v.array(v.string()), // hidden: the judge runs entries on these
-    anchors: v.array(v.string()), // hidden: on-target example replies the judge compares with
+    anchors: v.array(v.string()), // hidden: on-target example replies the par search reads (and the old judge used)
+    question: v.optional(v.string()), // the judge asks the unsteered model this about each reply; absent on bounties opened before it
     startsAt: v.number(),
     endsAt: v.number(),
     par: v.optional(v.object({ score: v.number(), pushes: v.array(push) })),

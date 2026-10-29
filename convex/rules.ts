@@ -87,3 +87,10 @@ export function heat(rank: number, total: number): number {
   if (total <= 1) return 99;
   return Math.max(0, Math.min(99, Math.round(100 * (1 - Math.log(rank) / Math.log(total)))));
 }
+
+// A bounty entry's efficiency: free up to a total dose of 0.5, then 25% off per unit, never below 40%. The worker's
+// judge() in worker/engine.py applies it to the score; this copy only explains the score on the page, so keep them equal.
+export function efficiency(pushes: { dose: number }[]) {
+  const dose = pushes.reduce((s, p) => s + Math.abs(p.dose), 0);
+  return Math.min(1, Math.max(0.4, 1 - 0.25 * (dose - 0.5)));
+}
