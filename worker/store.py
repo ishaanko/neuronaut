@@ -7,8 +7,8 @@
 
 Files: emb.npy [layers, width, dim] float16 and done.npy [layers, width] bool are memory-mapped and written in place;
 cards.jsonl is append-only (one line per measurement, the last line for a neuron wins), indexed by byte offset in memory.
-The dev and prod workers can share one store: appends hold a file lock, and a neuron another process wrote gets indexed
-when it's first read.
+The dev and prod workers can share one store: appends hold a file lock, and every read first indexes whatever the other
+process appended.
 """
 import fcntl
 import json
@@ -84,8 +84,7 @@ class Store:
         with self.lock:
             if not self.done[layer, n]:
                 return None
-            if (layer, n) not in self.offsets:
-                self._scan()
+            self._scan()  # another worker may have written (or rewritten) it; usually reads nothing
             with open(self.cards_path, "rb") as f:
                 f.seek(self.offsets[(layer, n)])
                 c = json.loads(f.readline())
