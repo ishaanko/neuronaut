@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { HowToPlay } from "../learn/HowToPlay";
 import { useSession } from "../players/session";
+import { textLink } from "../ui/styles";
 import { setTheme, useTheme } from "./theme";
 
 // The how-to-play walkthrough opens by itself on a first visit, once.
@@ -44,10 +45,10 @@ export function Nav() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line-strong bg-bg/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 bg-bg">
       {/* phones: logo and controls on one row, the links spread across a second */}
       <div className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-x-3 px-4 md:gap-x-8 sm:px-6">
-        <Link to="/" className="flex h-14 shrink-0 items-center gap-2 text-lg font-bold sm:gap-2.5 sm:text-xl tracking-tight">
+        <Link to="/" className="flex h-14 shrink-0 items-center gap-2 text-lg font-bold sm:gap-2.5 sm:text-xl">
           <Mark className="h-[18px] w-[18px]" />
           Neuronaut
         </Link>
@@ -56,7 +57,7 @@ export function Nav() {
             <NavLink
               key={to}
               to={to}
-              className={({ isActive }) => `px-2 py-1.5 font-mono text-xs uppercase tracking-[0.12em] ${isActive ? "text-fg underline decoration-rust decoration-2 underline-offset-[6px]" : "text-dim hover:text-fg"}`}
+              className={({ isActive }) => `px-2 py-1.5 font-mono text-sm ${isActive ? "text-fg underline decoration-rust decoration-2 underline-offset-[6px]" : "text-dim hover:text-fg"}`}
             >
               {label}
             </NavLink>
@@ -91,11 +92,11 @@ export function Nav() {
               <span className="hidden tabular-nums text-dim sm:inline">{me.points} pts</span>
             </Link>
           ) : signedIn ? (
-            <button className="press ml-2 h-9 shrink-0 whitespace-nowrap rounded-[3px] bg-accent px-3 sm:px-3.5 font-medium text-accent-fg hover:bg-accent-hover" onClick={() => requireJoin()}>
+            <button className="press ml-2 h-9 shrink-0 whitespace-nowrap border border-fg bg-fg px-3 font-medium text-bg hover:bg-bg hover:text-fg sm:px-3.5" onClick={() => requireJoin()}>
               Pick a handle
             </button>
           ) : (
-            <button className="press ml-2 h-9 shrink-0 whitespace-nowrap rounded-[3px] bg-accent px-3 sm:px-3.5 font-medium text-accent-fg hover:bg-accent-hover" onClick={signIn}>
+            <button className="press ml-2 h-9 shrink-0 whitespace-nowrap border border-fg bg-fg px-3 font-medium text-bg hover:bg-bg hover:text-fg sm:px-3.5" onClick={signIn}>
               Sign in
             </button>
           )}
@@ -108,8 +109,8 @@ export function Nav() {
 
 export function Footer() {
   return (
-    <footer className="mx-auto flex max-w-[1120px] flex-wrap items-baseline gap-x-6 gap-y-2 border-t border-line px-4 py-6 text-sm text-dim sm:px-6">
-      <nav className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs uppercase tracking-[0.12em]">
+    <footer className="mx-auto flex max-w-[1120px] flex-wrap items-baseline gap-x-6 gap-y-2 px-4 py-10 text-sm text-dim sm:px-6">
+      <nav className="flex flex-wrap gap-x-5 gap-y-2 font-mono">
         {FOOTER_LINKS.map(([to, label]) => (
           <Link key={to} to={to} className="hover:text-fg">
             {label}
@@ -118,7 +119,7 @@ export function Footer() {
       </nav>
       <span className="sm:ml-auto">
         Built on{" "}
-        <a href="https://github.com/lyramakesmusic/neuron-explorer" className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
+        <a href="https://github.com/lyramakesmusic/neuron-explorer" className={`text-fg ${textLink}`}>
           neuron-explorer
         </a>{" "}
         by lyramakesmusic

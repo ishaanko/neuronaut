@@ -25,14 +25,15 @@ export function WhyHeat({ d, answer }: { d: Puzzle; answer: Result["answer"] }) 
         Heat compares what two neurons do, not their numbers. Here is the answer next to one of your guesses on the same four
         questions. The more alike they read, the higher the cosine between their behavior embeddings.
       </p>
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap gap-x-5 gap-y-2">
         {wrong.map((x) => {
           const k = `${x.layer}:${x.n}`;
           return (
             <button
               key={k}
               onClick={() => setPick(k)}
-              className={`press rounded-[3px] px-3 py-1.5 font-mono text-sm ${x === g ? "bg-accent text-accent-fg" : "border border-line-strong hover:bg-raised"}`}
+              aria-pressed={x === g}
+              className={`py-1 font-mono text-sm ${x === g ? "text-fg underline decoration-rust decoration-2 underline-offset-[6px]" : "text-dim hover:text-fg"}`}
             >
               {dexNo(x.layer, x.n)} · {x.cos?.toFixed(2)}
             </button>

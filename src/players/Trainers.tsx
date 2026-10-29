@@ -19,15 +19,15 @@ export function Trainers() {
           <thead>
             <tr>
               {["#", "trainer", "points", "caught", "dailies", "streak", "best", "bounty wins"].map((h, i) => (
-                <th key={h} className={`pb-2 font-sans text-xs font-normal text-dim ${i > 1 ? "text-right" : ""} ${i > 4 ? "hidden sm:table-cell" : ""}`}>{h}</th>
+                <th key={h} className={`pb-2 font-serif text-sm font-normal text-dim ${i > 1 ? "text-right" : ""} ${i > 4 ? "hidden sm:table-cell" : ""}`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {top.map((p, i) => (
-              <tr key={p.handle} className="border-t border-line">
+              <tr key={p.handle}>
                 <td className="w-8 py-2 text-dim">{i + 1}</td>
-                <td className="py-2"><Link to={`/t/${p.handle}`} className="text-fg hover:underline underline-offset-4">{p.handle}</Link></td>
+                <td className="py-2"><Link to={`/t/${p.handle}`} className="text-fg underline-offset-4 hover:underline">{p.handle}</Link></td>
                 <td className="py-2 text-right text-fg">{p.points}</td>
                 <td className="py-2 text-right">{p.caught}</td>
                 <td className="py-2 text-right">{p.dailySolved}</td>
@@ -52,14 +52,14 @@ export function Trainer() {
   return (
     <div className="max-w-[920px]">
       <div className="flex items-baseline justify-between gap-4">
-        <h1 className="min-w-0 truncate text-4xl font-bold tracking-tight">{p.handle}</h1>
+        <h1 className="min-w-0 truncate text-4xl font-bold">{p.handle}</h1>
         {me?.handle === p.handle && (
           <button onClick={signOut} className="shrink-0 font-mono text-[13px] text-dim hover:text-fg">
             Sign out
           </button>
         )}
       </div>
-      <div className="mt-6 grid grid-cols-2 gap-5 border-y border-line py-5 sm:grid-cols-3 md:grid-cols-6">
+      <div className="mt-6 grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-6">
         <Stat label="Points" value={p.points} />
         <Stat label="Caught" value={p.catches.length} />
         <Stat label="Dailies" value={p.dailySolved} />
@@ -79,12 +79,12 @@ export function Trainer() {
           <ScrollX label={`${p.handle}'s dex`}><table className="w-full text-left">
             <tbody>
               {p.catches.map((c) => (
-                <tr key={`${c.layer}:${c.n}`} className="border-t border-line align-baseline">
+                <tr key={`${c.layer}:${c.n}`} className="align-baseline">
                   <td className="w-28 py-2"><NeuronLink layer={c.layer} n={c.n} /></td>
                   <td className="py-2 font-medium">{c.name}</td>
                   <td className="w-32 py-2"><RarityTag rarity={c.rarity} /></td>
-                  <td className="w-16 py-2 text-right font-mono text-xs">{c.points}</td>
-                  <td className="hidden w-24 py-2 text-right font-mono text-xs text-dim sm:table-cell">{c.date}</td>
+                  <td className="w-16 py-2 text-right font-mono text-sm">{c.points}</td>
+                  <td className="hidden w-24 py-2 text-right font-mono text-sm text-dim sm:table-cell">{c.date}</td>
                 </tr>
               ))}
             </tbody>

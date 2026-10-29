@@ -10,7 +10,6 @@ import { Reply } from "../neuron/Replies";
 import { useSession } from "../players/session";
 import { errorText } from "../ui/errors";
 import { useNow } from "../ui/now";
-import { Panel } from "../ui/Plate";
 import { Button, ErrorLine, Label, PageTitle, ScrollX } from "../ui/primitives";
 import { until } from "../ui/time";
 
@@ -33,17 +32,17 @@ export function Bounties() {
         bs.length ? (
           <section key={state}>
             <Label className="mb-3">{state === "open" ? "Open now" : state === "upcoming" ? "Coming up" : "Closed"}</Label>
-            <div className="grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-x-12 gap-y-8 md:grid-cols-2">
               {bs.map((b) => (
-                <Link key={b.slug} to={`/b/${b.slug}`} className="flex flex-col rounded-[3px] border border-line bg-card p-5 hover:border-line-strong">
+                <Link key={b.slug} to={`/b/${b.slug}`} className="group flex flex-col">
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-xl font-semibold">{b.title}</span>
+                    <span className="text-xl font-semibold underline-offset-4 group-hover:underline">{b.title}</span>
                     <span className="shrink-0 font-mono text-sm text-dim">
                       {state === "open" ? `${until(b.endsAt)} left` : state === "upcoming" ? `in ${until(b.startsAt)}` : "closed"}
                     </span>
                   </div>
-                  <p className="mt-2 flex-1 text-[15px] text-dim">{b.brief}</p>
-                  <div className="mt-4 flex gap-5 font-mono text-sm text-dim">
+                  <p className="mt-1 flex-1 text-dim">{b.brief}</p>
+                  <div className="mt-2 flex gap-5 font-mono text-sm text-dim">
                     <span>{b.maxNeurons === 1 ? "1 neuron" : `up to ${b.maxNeurons} neurons`}</span>
                     <span>{b.par === null ? "par being set" : `par ${Math.round(b.par)}`}</span>
                   </div>
@@ -95,7 +94,7 @@ export function Bounty() {
     <div className="grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1fr)_420px]">
       <section>
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <h1 className="text-4xl font-bold tracking-tight">{b.title}</h1>
+          <h1 className="text-4xl font-bold">{b.title}</h1>
           <span className="ml-auto font-mono text-sm text-dim">
             {state === "open" ? `${until(b.endsAt)} left` : state === "upcoming" ? `opens in ${until(b.startsAt)}` : "closed"}
           </span>
@@ -112,8 +111,8 @@ export function Bounty() {
             The judge runs your neurons on {b.promptCount} hidden questions, then multiplies three numbers between 0 and 1. Score is 1000
             times the product.
           </p>
-          <dl className="mt-3 max-w-[68ch] divide-y divide-line border-y border-line">
-            <div className="grid gap-x-4 py-2.5 sm:grid-cols-[7.5rem_1fr]">
+          <dl className="mt-4 max-w-[68ch] space-y-3">
+            <div className="grid gap-x-4 sm:grid-cols-[7.5rem_1fr]">
               <dt className="font-mono text-sm">concept</dt>
               <dd className="text-dim">
                 {b.question ? (
@@ -131,14 +130,14 @@ export function Bounty() {
                 )}
               </dd>
             </div>
-            <div className="grid gap-x-4 py-2.5 sm:grid-cols-[7.5rem_1fr]">
+            <div className="grid gap-x-4 sm:grid-cols-[7.5rem_1fr]">
               <dt className="font-mono text-sm">coherence</dt>
               <dd className="text-dim">
                 Whether the replies still read as language. The unpushed model reads them back: 1 if they look normal to it,
                 falling to 0 as they turn to word salad, and 0 if any reply loops.
               </dd>
             </div>
-            <div className="grid gap-x-4 py-2.5 sm:grid-cols-[7.5rem_1fr]">
+            <div className="grid gap-x-4 sm:grid-cols-[7.5rem_1fr]">
               <dt className="font-mono text-sm">efficiency</dt>
               <dd className="text-dim">How small your total dose is. Up to {EFFICIENCY.free} is free; each full unit past that costs {EFFICIENCY.perUnit * 100}%, down
                 to {EFFICIENCY.floor * 100}%.</dd>
@@ -155,7 +154,7 @@ export function Bounty() {
               <table className="w-full text-left font-mono text-sm">
                 <tbody>
                   {b.leaderboard.map((e, i) => (
-                    <tr key={i} className={`border-t border-line align-top ${e.you ? "text-fg" : ""}`}>
+                    <tr key={i} className="align-top">
                       <td className="w-8 py-2 text-dim">{i + 1}</td>
                       <td className="py-2">
                         <Link to={`/t/${e.handle}`} className="hover:underline underline-offset-4">{e.handle}</Link>
@@ -184,10 +183,10 @@ export function Bounty() {
         {b.mine.length > 0 && (
           <div className="mt-10">
             <Label className="mb-2">Your entries</Label>
-            <div className="border-t border-line">
+            <div>
               {b.mine.map((e, i) => (
-                <div key={i} className="border-b border-line py-2">
-                  <button className="-mx-2 flex w-[calc(100%+1rem)] flex-wrap items-baseline gap-x-4 gap-y-1 rounded-[3px] px-2 py-1 text-left font-mono text-sm hover:bg-card" onClick={() => setOpen(open === i ? null : i)}>
+                <div key={i} className="py-1">
+                  <button className="flex w-full flex-wrap items-baseline gap-x-4 gap-y-1 py-1 text-left font-mono text-sm" aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
                     <span className="flex-1">
                       {e.pushes.map((p) => (
                         <span key={`${p.layer}:${p.n}`} className="mr-3">
@@ -210,7 +209,7 @@ export function Bounty() {
                   {open === i && e.texts.length > 0 && (
                     <div className="mt-2 space-y-2">
                       {e.texts.map((t, j) => (
-                        <Reply key={j} text={t} className="border-l border-line-strong pl-3 text-dim" />
+                        <Reply key={j} text={t} className="text-dim" />
                       ))}
                     </div>
                   )}
@@ -223,7 +222,7 @@ export function Bounty() {
 
       <aside className="space-y-8 lg:sticky lg:top-16 lg:self-start">
         {state === "open" ? (
-          <Panel ascii={b.slug} className="p-5">
+          <div>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -259,7 +258,7 @@ export function Bounty() {
               total, you lose efficiency.</p>
             <div className="mt-1.5 min-h-4"><ErrorLine error={error} /></div>
           </form>
-          </Panel>
+          </div>
         ) : (
           <p className="text-dim">{state === "upcoming" ? "Not open yet." : "This bounty is closed."}</p>
         )}

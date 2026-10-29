@@ -3,6 +3,7 @@ import { useDeferredValue, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { MODEL } from "../../convex/rules";
 import { Input, Label } from "../ui/primitives";
+import { textLink } from "../ui/styles";
 import { ChineseNote, NeuronLink, Tokens } from "./parts";
 
 // Search every neuron's steer lens (tokens a push makes likely) and logit lens. Free, and the main way to hunt.
@@ -24,7 +25,7 @@ export function LensSearch({ onPick, pickLabel = "Use" }: { onPick?: (layer: num
       </div>
       {!dq && <p className="mt-2 text-sm text-dim">Lists neurons whose push makes that word more likely. Add a layer to narrow it down.</p>}
       {dq && (
-        <div className="mt-2 max-h-[380px] divide-y divide-line overflow-y-auto border-y border-line">
+        <div className="mt-3 max-h-[380px] overflow-y-auto">
           {badLayer ? (
             <p className="py-3 text-sm text-dim">Layers go from 0 to {MODEL.layers - 1}.</p>
           ) : results === undefined ? (
@@ -37,7 +38,7 @@ export function LensSearch({ onPick, pickLabel = "Use" }: { onPick?: (layer: num
                 <NeuronLink layer={r.layer} n={r.n} className="shrink-0" />
                 <Tokens tokens={r.steer} className="min-w-0 flex-1 truncate whitespace-nowrap text-dim" />
                 {onPick && (
-                  <button className="press shrink-0 rounded-[3px] border border-line-strong px-2.5 py-1 text-sm hover:bg-raised" onClick={() => onPick(r.layer, r.n)}>
+                  <button className={`shrink-0 text-sm ${textLink}`} onClick={() => onPick(r.layer, r.n)}>
                     {pickLabel}
                   </button>
                 )}

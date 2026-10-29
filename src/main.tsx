@@ -48,17 +48,17 @@ if (location.pathname === "/" || location.pathname === "/daily")
 function Clerk({ children }: { children: ReactNode }) {
   useTheme();
   const css = getComputedStyle(document.documentElement);
-  const c = { card: css.getPropertyValue("--color-card"), bg: css.getPropertyValue("--color-bg"), ink: css.getPropertyValue("--color-fg") };
+  const c = { bg: css.getPropertyValue("--color-bg"), ink: css.getPropertyValue("--color-fg") };
   const appearance = {
     variables: {
-      colorBackground: c.card,
+      colorBackground: c.bg,
       colorText: c.ink,
       colorPrimary: c.ink,
-      colorTextOnPrimaryBackground: c.card,
+      colorTextOnPrimaryBackground: c.bg,
       colorInputBackground: c.bg,
       colorInputText: c.ink,
       fontFamily: '"Source Serif 4", Georgia, serif',
-      borderRadius: "3px",
+      borderRadius: "0",
     },
   };
   return (

@@ -18,7 +18,7 @@ function inline(line: string): ReactNode[] {
 // asterisks and hashes. A reply that stopped mid-sentence ends with a faint ellipsis.
 export function Reply({ text, className = "" }: { text: string; className?: string }) {
   const t = text.trim();
-  if (!t) return <p className={`italic text-faint ${className}`}>Nothing. The model stopped right away.</p>;
+  if (!t) return <p className={`text-dim ${className}`}>Nothing. The model stopped right away.</p>;
   // finished means it ends on a full stop, maybe inside a closing quote or bracket: a bare `"ocean"` may still be mid-sentence
   const cut = !/[.!?…]["'”»)\]]*$/.test(t);
   const lines = t.split("\n");
@@ -32,7 +32,7 @@ export function Reply({ text, className = "" }: { text: string; className?: stri
           <p key={i} className={heading ? "font-semibold" : ""}>
             {inline(line)}
             {cut && i === lines.length - 1 && (
-              <span className="text-faint" title={`Replies stop after ${REPLY_TOKENS} tokens`}>
+              <span className="text-dim" title={`Replies stop after ${REPLY_TOKENS} tokens`}>
                 …
               </span>
             )}
@@ -59,18 +59,18 @@ export function Replies({
   baselineLabel?: string;
 }) {
   return (
-    <div className="divide-y divide-line rounded-[3px] border border-line bg-card">
+    <div className="space-y-8">
       {prompts.map((p, i) => (
-        <div key={i} className="p-5">
+        <div key={i}>
           <div className="font-semibold">{p}</div>
-          <div className={`mt-3 grid gap-5 ${baseline ? "md:grid-cols-2" : ""}`}>
+          <div className={`mt-2 grid gap-5 ${baseline ? "md:grid-cols-2" : ""}`}>
             <div>
-              <div className="mb-1 text-xs text-dim">{steeredLabel}</div>
+              <div className="mb-1 text-sm text-dim">{steeredLabel}</div>
               <Reply text={steered[i] ?? ""} />
             </div>
             {baseline && (
               <div>
-                <div className="mb-1 text-xs text-dim">{baselineLabel}</div>
+                <div className="mb-1 text-sm text-dim">{baselineLabel}</div>
                 <Reply text={baseline[i] ?? ""} className="text-dim" />
               </div>
             )}

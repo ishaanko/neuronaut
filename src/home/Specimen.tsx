@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NeuronLink, RarityTag } from "../neuron/parts";
+import { NeuronLink } from "../neuron/parts";
 import { Button, Label } from "../ui/primitives";
 import { SPECIMEN_NORMAL, SPECIMEN_PROMPT, SPECIMENS } from "./specimens";
 
@@ -16,32 +16,31 @@ export function Specimen() {
   let hit = 0;
   return (
     <figure>
-      <figcaption className="flex items-baseline justify-between gap-4">
+      <figcaption>
         <Label>One neuron, pushed too far</Label>
-        <RarityTag rarity="glitch" />
       </figcaption>
       <div className="mt-5 font-semibold">{SPECIMEN_PROMPT}</div>
 
-      <div className="mt-4 font-mono text-[11px] uppercase tracking-wider text-faint">Normal</div>
-      <p className="mt-1 text-[15px] leading-relaxed text-dim">{SPECIMEN_NORMAL}</p>
+      <div className="mt-4 text-sm text-dim">Normal</div>
+      <p className="mt-1 leading-relaxed text-dim">{SPECIMEN_NORMAL}</p>
 
-      <div className="mt-5 flex items-baseline gap-2 font-mono text-[11px] uppercase tracking-wider text-faint">
-        Pushed <NeuronLink layer={s.layer} n={s.n} className="normal-case tracking-normal" />
+      <div className="mt-5 flex items-baseline gap-2 text-sm text-dim">
+        Pushed <NeuronLink layer={s.layer} n={s.n} />
       </div>
       <p key={i} className="mt-1 text-xl leading-[1.55] sm:text-2xl">
         {parts(s.reply).map((p, j) =>
           p.hit ? (
-            <mark key={j} className="infect rounded-[2px] bg-rust px-0.5 text-card" style={{ animationDelay: `${250 + 110 * hit++}ms` }}>
+            <mark key={j} className="infect bg-rust px-0.5 text-bg" style={{ animationDelay: `${250 + 110 * hit++}ms` }}>
               {p.text}
             </mark>
           ) : (
             <span key={j}>{p.text}</span>
           ),
         )}
-        <span className="text-faint">…</span>
+        <span className="text-dim">…</span>
       </p>
 
-      <p className="mt-5 max-w-[52ch] text-[15px] text-dim">
+      <p className="mt-5 max-w-[52ch] text-dim">
         Pushing a neuron adds its direction to the model's thinking at every word. {s.note} That's a glitch.
       </p>
       <Button variant="ghost" className="mt-4" onClick={() => setI((i + 1) % SPECIMENS.length)}>

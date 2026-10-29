@@ -16,9 +16,9 @@ import { Specimen } from "./Specimen";
 // One cell in the strip of modes under the hero: name, one line on what you do, and its live status.
 function Mode({ to, name, line, status }: { to: string; name: string; line: string; status: string }) {
   return (
-    <Link to={to} className="group flex flex-col gap-1 py-5 lg:px-5 lg:first:pl-0 lg:last:pr-0">
+    <Link to={to} className="group flex flex-col gap-1">
       <span className="text-lg font-bold underline-offset-4 group-hover:underline">{name}</span>
-      <span className="text-[15px] text-dim">{line}</span>
+      <span className="text-dim">{line}</span>
       <span className="mt-auto pt-2 font-mono text-sm">{status}</span>
     </Link>
   );
@@ -46,19 +46,17 @@ export function Home() {
         : `${tally?.solvers ?? 0} solved so far`;
 
   return (
-    <div className="space-y-12 lg:space-y-16">
+    <div className="space-y-16">
       <section className="grid grid-cols-[minmax(0,1fr)] gap-10 pt-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-x-16 lg:pt-8">
         <div>
-          <h1 className="text-[2.6rem] font-bold leading-[1.02] tracking-tight sm:text-6xl">
-            Find the neuron <span className="text-rust">behind the words.</span>
-          </h1>
+          <h1 className="text-[2.6rem] font-bold leading-[1.05] sm:text-6xl">Find the neuron behind the words</h1>
           <p className="mt-6 max-w-[44ch] text-lg text-dim">
             {MODEL.name} has {total.toLocaleString()} neurons. Push one and the model starts talking about the sea, thinks
             it's a doctor, or falls apart. Every day one is hidden, and you get {LIMITS.guesses} guesses to find it.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link to="/daily" className={buttonClass({ size: "lg" })}>
-              Play daily{daily ? ` Nº ${daily.number}` : ""}
+              Play today's daily
             </Link>
             <Button size="lg" variant="ghost" onClick={() => setExample(true)}>
               Watch a game
@@ -67,24 +65,24 @@ export function Home() {
         </div>
 
         {/* the hook: a destructive neuron eating a reply. Second on phones, beside the intro on wide screens */}
-        <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:border-line-strong lg:pl-12">
+        <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <Specimen />
         </div>
 
         {/* one of today's strange answers, word for word */}
         {daily && (
-          <Link to="/daily" className="group block self-start border-t border-line-strong pt-4 lg:col-start-1">
+          <Link to="/daily" className="group block self-start lg:col-start-1">
             <div className="flex items-baseline justify-between gap-4">
-              <Label>Today's neuron, Nº {daily.number}</Label>
+              <Label>Today's neuron</Label>
               <span className="shrink-0 font-mono text-xs text-dim">{dailyStatus}</span>
             </div>
             <div className="mt-3 font-semibold">{daily.prompts[0]}</div>
-            <p className="mt-1 line-clamp-3 text-[15px] leading-relaxed text-dim group-hover:text-fg">{plainReply(daily.texts[0])}</p>
+            <p className="mt-1 line-clamp-3 leading-relaxed text-dim group-hover:text-fg">{plainReply(daily.texts[0])}</p>
           </Link>
         )}
       </section>
 
-      <section className="grid divide-y divide-line-strong border-y border-fg lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+      <section className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
         <Mode to="/dex" name="Dex" line={`Guess what a neuron does, scan it, catch the good ones. ${LIMITS.catches} catches a day.`} status={`${overview?.caught ?? 0} caught`} />
         <Mode
           to="/bounties"
@@ -99,13 +97,13 @@ export function Home() {
       {overview?.recent.length ? (
         <section>
           <Label className="mb-3">Latest catches</Label>
-          <div className="grid border-t border-line lg:grid-cols-2 lg:gap-x-12">
+          <div className="grid lg:grid-cols-2 lg:gap-x-12">
             {overview.recent.map((c) => (
-              <div key={`${c.layer}:${c.n}`} className="flex items-center gap-3 border-b border-line py-2.5">
+              <div key={`${c.layer}:${c.n}`} className="flex items-center gap-3 py-1.5">
                 <NeuronLink layer={c.layer} n={c.n} />
                 <span className="min-w-0 flex-1 truncate">{c.name}</span>
                 <RarityTag rarity={c.rarity} />
-                <span className="w-8 text-right font-mono text-xs text-faint">{ago(c.at)}</span>
+                <span className="w-8 text-right font-mono text-sm text-dim">{ago(c.at)}</span>
               </div>
             ))}
           </div>

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { MODEL, type Rarity } from "../../convex/rules";
 import { Input } from "../ui/primitives";
+import { textLink } from "../ui/styles";
 import { RARITY_COLOR, dexNo } from "./format";
 
 // Layer and neuron number inputs side by side, each with its range written above it.
@@ -8,11 +9,11 @@ export function NeuronInput({ layer, n, onLayer, onN }: { layer: string; n: stri
   return (
     <div className="flex items-end gap-2">
       <label className="block">
-        <span className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-dim">Layer 0-{MODEL.layers - 1}</span>
+        <span className="mb-1 block text-sm text-dim">Layer 0-{MODEL.layers - 1}</span>
         <Input value={layer} onChange={(e) => onLayer(e.target.value.replace(/\D/g, "").slice(0, 2))} className="w-16 text-center font-mono" inputMode="numeric" aria-label="layer" />
       </label>
       <label className="block">
-        <span className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-dim">Neuron 0-{MODEL.width - 1}</span>
+        <span className="mb-1 block text-sm text-dim">Neuron 0-{MODEL.width - 1}</span>
         <Input value={n} onChange={(e) => onN(e.target.value.replace(/\D/g, "").slice(0, 4))} className="w-24 text-center font-mono" inputMode="numeric" aria-label="neuron" />
       </label>
     </div>
@@ -23,7 +24,7 @@ export function NeuronInput({ layer, n, onLayer, onN }: { layer: string; n: stri
 export function DoseInput({ value, onChange, label = "dose" }: { value: string; onChange: (v: string) => void; label?: string }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-dim">Dose</span>
+      <span className="mb-1 block text-sm text-dim">Dose</span>
       <Input value={value} onChange={(e) => onChange(e.target.value)} className="w-20 text-center font-mono" inputMode="decimal" aria-label={label} />
     </label>
   );
@@ -31,19 +32,15 @@ export function DoseInput({ value, onChange, label = "dose" }: { value: string; 
 
 export function NeuronLink({ layer, n, className = "" }: { layer: number; n: number; className?: string }) {
   return (
-    <Link to={`/n/${layer}/${n}`} className={`font-mono text-sm underline decoration-line-strong underline-offset-4 hover:decoration-fg ${className}`}>
+    <Link to={`/n/${layer}/${n}`} className={`font-mono text-sm ${textLink} ${className}`}>
       {dexNo(layer, n)}
     </Link>
   );
 }
 
+// A rarity as a word in its color.
 export function RarityTag({ rarity, className = "" }: { rarity: Rarity; className?: string }) {
-  return (
-    <span className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-mono text-xs ${RARITY_COLOR[rarity]} ${className}`}>
-      <span className="h-2 w-2 rounded-full bg-current" />
-      {rarity}
-    </span>
-  );
+  return <span className={`shrink-0 whitespace-nowrap font-mono text-sm ${RARITY_COLOR[rarity]} ${className}`}>{rarity}</span>;
 }
 
 export function Tokens({ tokens, className = "" }: { tokens: string[]; className?: string }) {

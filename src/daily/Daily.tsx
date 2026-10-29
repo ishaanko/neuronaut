@@ -12,12 +12,11 @@ import { useSession } from "../players/session";
 import { errorText } from "../ui/errors";
 import { Modal } from "../ui/Modal";
 import { useNow } from "../ui/now";
-import { Panel, Plate } from "../ui/Plate";
-import { Button, ErrorLine, Label } from "../ui/primitives";
+import { Button, ErrorLine, Facts, Label } from "../ui/primitives";
+import { textLink } from "../ui/styles";
 import { clock } from "../ui/time";
 import { Archive } from "./Archive";
-import { GuessList, GuessMap } from "./Guesses";
-import { ChartLegend, HeatChart } from "./HeatChart";
+import { GuessList } from "./Guesses";
 import { ResultCard } from "./ResultCard";
 import { WhyHeat } from "./WhyHeat";
 
@@ -104,12 +103,7 @@ function Puzzle({ date }: { date?: string }) {
   };
 
   // The header doesn't wait for the puzzle, so the page paints at once.
-  const header = (
-    <h1 className="text-4xl font-bold tracking-tight">
-      {date ? "Practice" : "Daily"}
-      {d && <span className="text-rust"> #{d.number}</span>}
-    </h1>
-  );
+  const header = <h1 className="text-4xl font-bold">{date ? "Practice" : "Daily"}{d && ` #${d.number}`}</h1>;
 
   if (d === undefined)
     return (
@@ -133,57 +127,55 @@ function Puzzle({ date }: { date?: string }) {
 
   return (
     <div className="space-y-12">
-      <Plate
-        no={String(d.number).padStart(3, "0")}
-        path={[date ? "practice" : "daily", d.date, d.difficulty, d.practice && "no points"].filter(Boolean).join(" / ")}
-        cells={[
-          { label: "Solved", value: tally ? `${tally.solvers} of ${tally.players}` : "-" },
-          { label: "Guesses", value: `${used} of ${d.limit}` },
-          {
-            label: "Your time",
-            value: (
-              <span className="font-mono tabular-nums">
-                {result ? (result.seconds !== null ? clock(result.seconds) : "-") : d.startedAt ? clock(((lastAt ?? now) - d.startedAt) / 1000) : "-"}
-              </span>
-            ),
-          },
-          { label: "Layer range", value: hint(d.band && `L${d.band[0]} to L${d.band[1]}`, d.hintsAt.band) },
-          { label: "A word it pushes", value: hint(d.hint, d.hintsAt.token) },
-        ]}
-      >
-        <div className="mb-8 space-y-3">
-          {header}
-          <p className="text-xl italic">We turned one neuron way up while the model answered. Which one?</p>
-          <p className="max-w-[68ch] text-dim">
-            Read what it said, search for words that stand out, and guess. Heat (0 to 99) is how much your guess bends the
-            answers the way the hidden neuron does. It doesn't track layers: a neighbor can be cold and a far layer hot. You
-            have {d.limit} guesses.{" "}
-            <button className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg" onClick={() => setExample(true)}>
-              Watch a game
-            </button>
-          </p>
-        </div>
+      <div className="space-y-6">
+        {header}
+        <p className="max-w-[68ch] text-dim">
+          We turned one neuron way up while the model answered. Which one? Read what it said, search for words that stand out,
+          and guess. Heat (0 to 99) is how much your guess bends the answers the way the hidden neuron does. It doesn't track
+          layers: a neighbor can be cold and a far layer hot. You have {d.limit} guesses.{" "}
+          <button className={`text-fg ${textLink}`} onClick={() => setExample(true)}>
+            Watch a game
+          </button>
+        </p>
+        <Facts
+          items={[
+            { label: "Solved", value: tally ? `${tally.solvers} of ${tally.players}` : "-" },
+            { label: "Guesses", value: `${used} of ${d.limit}` },
+            {
+              label: "Your time",
+              value: (
+                <span className="font-mono tabular-nums">
+                  {result ? (result.seconds !== null ? clock(result.seconds) : "-") : d.startedAt ? clock(((lastAt ?? now) - d.startedAt) / 1000) : "-"}
+                </span>
+              ),
+            },
+            { label: "Layer range", value: hint(d.band && `L${d.band[0]} to L${d.band[1]}`, d.hintsAt.band) },
+            { label: "A word it pushes", value: hint(d.hint, d.hintsAt.token) },
+            ...(d.difficulty ? [{ label: "Difficulty", value: d.difficulty }] : []),
+          ]}
+        />
+      </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-12 lg:grid-cols-[minmax(0,1fr)_400px]">
         <section>
-          <div className="mb-3 flex items-baseline justify-between gap-4">
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <Label>What the model said</Label>
-            <button className="font-mono text-xs text-dim underline underline-offset-4 hover:text-fg" onClick={() => setShowNormal(!showNormal)}>
+            <button className={`whitespace-nowrap text-sm text-dim hover:text-fg ${textLink}`} onClick={() => setShowNormal(!showNormal)}>
               {showNormal ? "Hide normal answers" : "Compare with normal answers"}
             </button>
           </div>
-          <div className="divide-y divide-line rounded-[3px] border border-line-strong bg-card">
+          <div className="space-y-8">
             {d.prompts.map((p, i) => (
-              <div key={i} className="p-5">
+              <div key={i}>
                 <div className="font-semibold">{p}</div>
                 <div className={`mt-2 grid gap-5 ${showNormal ? "md:grid-cols-2" : ""}`}>
                   <div>
-                    {showNormal && <div className="mb-1 font-mono text-[11px] uppercase tracking-wider text-dim">With the hidden neuron</div>}
+                    {showNormal && <div className="mb-1 text-sm text-dim">With the hidden neuron</div>}
                     <Reply text={d.texts[i]} />
                   </div>
                   {showNormal && (
                     <div>
-                      <div className="mb-1 font-mono text-[11px] uppercase tracking-wider text-dim">Normal</div>
+                      <div className="mb-1 text-sm text-dim">Normal</div>
                       <Reply text={d.baseline[i]} className="text-dim" />
                     </div>
                   )}
@@ -191,12 +183,12 @@ function Puzzle({ date }: { date?: string }) {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-sm italic text-dim">Replies stop after {REPLY_TOKENS} tokens, so most end mid-sentence.</p>
+          <p className="mt-6 text-sm text-dim">Replies stop after {REPLY_TOKENS} tokens, so most end mid-sentence.</p>
         </section>
 
-        <aside className="space-y-8 lg:sticky lg:top-20 lg:self-start">
+        <aside className="space-y-10 lg:sticky lg:top-20 lg:self-start">
           {result ? (
-            <Panel ascii={d.date} className="pop p-5">
+            <div className="pop">
               <div className="text-lg font-semibold">
                 {result.solved ? `Solved in ${result.guesses}` : "Out of guesses"}
                 {result.seconds !== null && <span className="font-normal text-dim">, {clock(result.seconds)}</span>}
@@ -210,42 +202,34 @@ function Puzzle({ date }: { date?: string }) {
               {!signedIn && (
                 <p className="mt-3 text-sm text-dim">
                   Playing as a guest.{" "}
-                  <button className="text-fg underline underline-offset-4" onClick={signUp}>
+                  <button className={`text-fg ${textLink}`} onClick={signUp}>
                     Make an account
                   </button>{" "}
                   to save it.
                 </p>
               )}
-            </Panel>
+            </div>
           ) : (
-            <Panel ascii={d.date} className="p-5">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  submit();
-                }}
-              >
-                <div className="flex items-baseline justify-between">
-                  <Label>Your guess</Label>
-                  <span className="font-mono text-sm tabular-nums text-dim">
-                    {used}/{d.limit}
-                  </span>
-                </div>
-                <div className={`mt-3 flex flex-wrap items-end gap-2 ${shaking ? "shake" : ""}`} onAnimationEnd={() => setShaking(false)}>
-                  <NeuronInput layer={layer} n={n} onLayer={setLayer} onN={setN} />
-                  <Button className="min-w-24 flex-1">Guess</Button>
-                </div>
-                <div className="mt-2 min-h-5">
-                  <ErrorLine error={error} />
-                </div>
-                <ChartLegend className="mt-1 border-b border-line-strong pb-2" />
-                <HeatChart
-                  className="mt-2"
-                  slots={d.limit}
-                  marks={[...d.guesses].sort((a, b) => a.at - b.at).map((g) => (g.status === "done" && g.heat !== null ? { heat: g.heat, correct: g.correct } : null))}
-                />
-              </form>
-            </Panel>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                submit();
+              }}
+            >
+              <div className="flex items-baseline justify-between">
+                <Label>Your guess</Label>
+                <span className="font-mono text-sm tabular-nums text-dim">
+                  {used}/{d.limit}
+                </span>
+              </div>
+              <div className={`mt-3 flex flex-wrap items-end gap-2 ${shaking ? "shake" : ""}`} onAnimationEnd={() => setShaking(false)}>
+                <NeuronInput layer={layer} n={n} onLayer={setLayer} onN={setN} />
+                <Button className="min-w-24 flex-1">Guess</Button>
+              </div>
+              <div className="mt-2 min-h-5">
+                <ErrorLine error={error} />
+              </div>
+            </form>
           )}
 
           {used > 0 && <GuessList guesses={d.guesses} offline={offline} />}
@@ -261,12 +245,8 @@ function Puzzle({ date }: { date?: string }) {
               }}
             />
           )}
-
-          {d.guesses.some((g) => g.place) && <GuessMap d={d} />}
-
         </aside>
       </div>
-      </Plate>
 
       {result && <WhyHeat d={d} answer={result.answer} />}
       <Archive current={d.date} />
