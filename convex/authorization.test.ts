@@ -83,11 +83,11 @@ test("one player's daily solve doesn't reveal the answer, hints or guesses to an
   await alice.mutation(api.daily.guess, { layer: 1, n: 1 });
   await bob.mutation(api.daily.guess, { layer: 1, n: 2 });
   const a = (await alice.query(api.daily.current, {}))!;
-  expect([a.result?.solved, a.answer?.layer, a.answer?.n]).toEqual([true, 1, 99]);
+  expect([a.result?.solved, a.result?.answer.layer, a.result?.answer.n]).toEqual([true, 1, 99]);
   expect(a.band).toEqual([0, 7]);
   expect(a.hint).toBe("private hint");
   for (const viewer of [bob, t]) {
-    expect(await viewer.query(api.daily.current, {})).toMatchObject({ result: null, answer: null, band: null, hint: null });
+    expect(await viewer.query(api.daily.current, {})).toMatchObject({ result: null, band: null, hint: null });
     expect(await viewer.query(api.daily.tally, { date: DATE })).toEqual({ players: 1, solvers: 1 });
   }
   expect((await bob.query(api.daily.current, {}))!.guesses.map((g) => g.n)).toEqual([2]);
@@ -100,10 +100,10 @@ test("a guest's game stays theirs: hidden from the leaderboard, never shown to a
   await t.mutation(api.worker.putProfiles, { secret: SECRET, jobIds: [], profiles: [profile(1, axis(0))] });
   const guest = "guest-token-0123456789";
   await t.mutation(api.daily.guess, { layer: 1, n: 1, guest });
-  expect((await t.query(api.daily.current, { guest }))!.answer).toMatchObject({ layer: 1, n: 99 });
+  expect((await t.query(api.daily.current, { guest }))!.result?.answer).toMatchObject({ layer: 1, n: 99 });
   expect((await t.query(api.players.leaderboard, {})).map((p) => p.handle).sort()).toEqual(["Alice", "Bob"]);
   // a signed-in caller holding the token still gets their own game
-  expect(await alice.query(api.daily.current, { guest })).toMatchObject({ result: null, answer: null });
+  expect(await alice.query(api.daily.current, { guest })).toMatchObject({ result: null });
   const carol = t.withIdentity({ tokenIdentifier: "test|carol" });
   await carol.mutation(api.players.join, { handle: "Carol", guest });
   expect((await carol.query(api.daily.current, {}))!.result?.solved).toBe(true);
@@ -142,7 +142,7 @@ test("bounty entries and judged replies stay private until the bounty closes; th
   const { t, alice, bob, seedBounty } = await setup();
   await seedBounty();
   await alice.mutation(api.bounties.submit, { slug: "isolation", pushes });
-  const job = (await t.run((ctx) => ctx.db.query("jobs").collect()))[0];
+  const job = (await t.run((ctx) => ctx.db.query("jobs").collect())).find((j) => j.kind === "judge")!;
   await t.mutation(api.worker.finishJudge, {
     secret: SECRET, id: job._id, entryId: job.args.entryId, score: 700, concept: 0.8, coherence: 0.9, texts: ["alice judged reply"],
   });
@@ -198,7 +198,7 @@ test("every worker endpoint refuses a wrong secret, and all of them refuse when 
   const dailyId = await seedDaily();
   const { entryId, jobId } = await t.run(async (ctx) => {
     const entryId = await ctx.db.insert("entries", { playerId: bobId, bountyId, pushes, status: "pending" });
-    const jobId = await ctx.db.insert("jobs", { kind: "judge", key: "job", args: { entryId }, priority: 0, status: "pending", by: bobId });
+    const jobId = await ctx.db.insert("jobs", { kind: "judge", key: "job", args: { entryId, slug: "isolation", pushes, prompts: [], anchors: [] }, priority: 0, status: "pending", by: bobId });
     return { entryId, jobId };
   });
   // Valid arguments apart from the secret, so the guard (not the validator) is what refuses.
@@ -306,7 +306,7 @@ test("a lab callback writes only the admitted owner's private experiment after a
   });
   expect(await bob.query(api.lab.mine, {})).toEqual([]);
   expect(await t.query(api.lab.mine, {})).toEqual([]);
-  expect(await alice.query(api.lab.mine, {})).toMatchObject([{ id, status: "done", texts: ["private lab output"] }]);
+  expect(await alice.query(api.lab.mine, {})).toMatchObject([{ id, status: "done", result: { texts: ["private lab output"] } }]);
 });
 
 

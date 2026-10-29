@@ -4,7 +4,7 @@ of effect it has and how focused it is. Reads only the local sweep store and the
     uv run --group analysis python places.py [--relayout]
     bunx convex import --table places --replace ../data/places.jsonl
 
-Writes ../data/places.jsonl (one row per strong neuron, plus effect-only rows for weak ones that break the text) and ../src/data/zones.json (zone names, blurbs and the coarse
+Writes ../data/places.jsonl (one row per strong neuron, plus effect-only rows for weak ones that break the text) and ../src/map/zones.json (zone names, blurbs and the coarse
 grid the map draws them from). The layout (UMAP of behavior embeddings, then 28 k-means cells) is cached in
 cache/layout.npz; ZONES below names those cells, so after --relayout the cell numbers change and ZONES must be redone.
 
@@ -129,8 +129,8 @@ def main():
     zones = [{"id": zid, "name": name, "blurb": blurb, "count": int((zone == z).sum()),
               "x": round(float(np.median(x[zone == z])), 3), "y": round(float(np.median(y[zone == z])), 3)}
              for z, (zid, name, blurb, _) in enumerate(ZONES)]
-    os.makedirs("../src/data", exist_ok=True)
-    with open("../src/data/zones.json", "w") as f:
+    os.makedirs("../src/map", exist_ok=True)
+    with open("../src/map/zones.json", "w") as f:
         json.dump({"grid": GRID, "cells": "".join("." if v < 0 else chr(97 + v) for v in g.ravel()), "zones": zones,
                    "placed": len(keys), "total": len(cards)}, f, ensure_ascii=False)
     print(f"placed {len(keys)} of {len(cards)} neurons in {len(ZONES)} zones")

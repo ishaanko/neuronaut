@@ -1,8 +1,7 @@
-// Bounties rotate through this pool: a new one starts every BOUNTY_STAGGER_HOURS and runs BOUNTY_DAYS, so three are
-// open at once. The judge runs entries on JUDGE_PROMPTS (never shown to players) and asks the unsteered model the
+// Bounties rotate through this pool: a new one starts every BOUNTY_STAGGER_HOURS and runs BOUNTY_DAYS (rules.ts), so
+// three are open at once. The judge runs entries on JUDGE_PROMPTS (never shown to players) and asks the unsteered model the
 // bounty's yes/no question about each reply. The anchors are on-target replies: the house's par search looks for neurons
 // that push their words.
-export const BOUNTY_DAYS = 7;
 export const BOUNTY_STAGGER_HOURS = 56;
 
 export const JUDGE_PROMPTS = [

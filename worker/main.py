@@ -92,17 +92,11 @@ class Worker:
 
     # ---------- jobs ----------
     def run(self, jobs):
-        by = {}
-        for j in jobs:
-            by.setdefault(j["kind"], []).append(j)
-        for j in by.get("judge", []):
-            self.guard([j], lambda js: self.judge(js[0]))
-        for j in by.get("par", []):
-            self.guard([j], lambda js: self.par(js[0]))
-        for j in by.get("daily", []):
-            self.guard([j], lambda js: self.daily(js[0]))
-        for j in by.get("combo", []):
-            self.guard([j], lambda js: self.combo(js[0]))
+        """Runs claimed GPU jobs one at a time: judging first, then par searches, dailies and lab experiments."""
+        for kind, handle in (("judge", self.judge), ("par", self.par), ("daily", self.daily), ("combo", self.combo)):
+            for j in jobs:
+                if j["kind"] == kind:
+                    self.guard([j], lambda js: handle(js[0]))
 
     def guard(self, jobs, fn):
         try:
@@ -312,7 +306,7 @@ class Worker:
         if sweep:
             L, N = self.lens.kl.shape
             order = np.random.default_rng(0).permutation(np.argwhere(np.ones((L, N), bool)))
-            state = (order, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", f"sweep-{MODEL.replace('/', '--')}.cursor"))
+            state = (order, STORE + ".cursor")
         self.call("mutation", "worker:putBaseline", prompts=[b["prompt"] for b in self.eng.base],
                   texts=[b["text"] for b in self.eng.base])
         self.refresh_ladders()

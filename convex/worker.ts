@@ -1,26 +1,15 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { rankEntry, settleIfEnded } from "./bounties";
 import { refundPending, resolvePending } from "./daily";
-import { bumpStats, globalStats } from "./jobs";
-import { checkWorker, neuronKey, queryToday, rarity } from "./lib";
-import { jobKind, ladder, push } from "./schema";
+import { checkWorker, profileOf, queryToday } from "./lib";
+import { neuronKey, rarity } from "./rules";
+import { jobKind, ladder, measured, push, puzzle } from "./schema";
+import { globalStats, setBaseline } from "./stats";
 
 // The GPU worker's API (worker/main.py). Every call carries WORKER_SECRET.
 
 const STALE_MS = 10 * 60 * 1000; // a running job older than this is assumed lost and handed out again
-
-const profile = v.object({
-  layer: v.number(),
-  n: v.number(),
-  texts: v.array(v.string()),
-  words: v.array(v.string()),
-  z: v.number(),
-  nll: v.number(),
-  distinct: v.number(),
-  embedding: v.array(v.float64()),
-});
 
 const ALL_KINDS = jobKind.members.map((m) => m.value);
 
@@ -90,17 +79,17 @@ export const fail = mutation({
     if (!job || job.status === "done") return; // a second attempt at a job another attempt already finished
     await ctx.db.patch(id, { status: "failed", error: error.slice(0, 2000) });
     if (job.kind === "judge") {
-      await ctx.db.patch(job.args.entryId as Id<"entries">, { status: "failed" });
-      await settleIfEnded(ctx, job.args.entryId as Id<"entries">);
+      await ctx.db.patch(job.args.entryId, { status: "failed" });
+      await settleIfEnded(ctx, job.args.entryId);
     }
-    if (job.kind === "combo") await ctx.db.patch(job.args.experimentId as Id<"experiments">, { status: "failed" });
-    if (job.kind === "profile") await refundPending(ctx, neuronKey(job.args.layer as number, job.args.n as number));
+    if (job.kind === "combo") await ctx.db.patch(job.args.experimentId, { status: "failed" });
+    if (job.kind === "profile") await refundPending(ctx, neuronKey(job.args.layer, job.args.n));
   },
 });
 
 // Stores measured neurons (from jobs or the sweep), scores guesses that were waiting on them, closes the jobs.
 export const putProfiles = mutation({
-  args: { secret: v.string(), jobIds: v.array(v.id("jobs")), profiles: v.array(profile) },
+  args: { secret: v.string(), jobIds: v.array(v.id("jobs")), profiles: v.array(v.object(measured)) },
   handler: async (ctx, { secret, jobIds, profiles }) => {
     checkWorker(secret);
     // No count in stats: that row is on every page, and bumping it on each guess's profile reran them all for every
@@ -108,7 +97,7 @@ export const putProfiles = mutation({
     let added = 0;
     for (const p of profiles) {
       const key = neuronKey(p.layer, p.n);
-      if (await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", key)).unique()) continue;
+      if (await profileOf(ctx, key)) continue;
       await ctx.db.insert("profiles", { ...p, key, rarity: rarity(p.z, p.nll, p.distinct), caught: false });
       await resolvePending(ctx, key, p.embedding);
       added++;
@@ -143,7 +132,7 @@ export const putBaseline = mutation({
   args: { secret: v.string(), prompts: v.array(v.string()), texts: v.array(v.string()) },
   handler: async (ctx, { secret, prompts, texts }) => {
     checkWorker(secret);
-    await bumpStats(ctx, { baseline: { prompts, texts } });
+    await setBaseline(ctx, prompts, texts);
   },
 });
 
@@ -179,23 +168,9 @@ export const putPar = mutation({
   },
 });
 
-const dailyArgs = {
-  id: v.id("jobs"),
-  date: v.string(),
-  layer: v.number(),
-  n: v.number(),
-  prompts: v.array(v.string()),
-  texts: v.array(v.string()),
-  baseline: v.array(v.string()),
-  embedding: v.array(v.float64()),
-  band: v.array(v.number()),
-  hint: v.string(),
-  difficulty: v.optional(v.union(v.literal("easy"), v.literal("medium"), v.literal("hard"))),
-};
-
 // Stores a generated puzzle. The worker computes its ladder against the full sweep, which only it holds.
 export const putDaily = mutation({
-  args: { secret: v.string(), ...dailyArgs, ladder },
+  args: { secret: v.string(), id: v.id("jobs"), ...puzzle },
   handler: async (ctx, { secret, id, ...d }) => {
     checkWorker(secret);
     if (!(await ctx.db.query("dailies").withIndex("by_date", (q) => q.eq("date", d.date)).unique())) {

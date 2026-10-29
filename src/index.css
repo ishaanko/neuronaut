@@ -111,7 +111,7 @@
   }
 }
 
-/* A static field of ASCII characters behind a panel's content (components/ui.tsx Ascii). It fades out toward the
+/* A static field of ASCII characters behind a panel's content (ui/Plate.tsx Ascii). It fades out toward the
    bottom left so text laid over it stays readable. */
 .ascii {
   position: absolute;

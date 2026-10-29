@@ -3,8 +3,8 @@
 import { StrictMode, act, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
-import { SessionProvider, useSession } from "../../src/lib/session";
-import { Lab } from "../../src/pages/Lab";
+import { SessionProvider, useSession } from "../../src/players/session";
+import { Lab } from "../../src/lab/Lab";
 import { state } from "./mocks";
 
 const root = createRoot(document.getElementById("root")!);

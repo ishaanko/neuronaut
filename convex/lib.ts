@@ -1,8 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { NEW_GUESTS_PER_MINUTE, today } from "./rules";
-
-export * from "./rules";
+import { DOSE, NEW_GUESTS_PER_MINUTE, isDate, today, validNeuron } from "./rules";
 
 // Today's UTC date, for queries. A query must not read the clock: Convex doesn't rerun it when the time changes and
 // may serve its cached result, so one that calls today() keeps showing yesterday's puzzle after midnight. The clock
@@ -68,6 +66,24 @@ export async function guestPlayer(ctx: MutationCtx, guest: string) {
 export async function dailyPlayer(ctx: MutationCtx, guest?: string) {
   if ((await ctx.auth.getUserIdentity()) || guest === undefined) return await requirePlayer(ctx);
   return await guestPlayer(ctx, guest);
+}
+
+// A neuron's measured profile, or null if nobody has measured it yet.
+export async function profileOf(ctx: QueryCtx, key: string) {
+  return await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", key)).unique();
+}
+
+// Rejects a date argument that isn't a real YYYY-MM-DD date.
+export function checkDate(date: string) {
+  if (!isDate(date)) throw new ConvexError(`No such date: ${date}`);
+}
+
+// Checks a player's push (bounty entry, lab experiment) and rounds its dose to hundredths, as it's stored.
+export function checkPush<P extends { layer: number; n: number; dose: number }>(p: P): P {
+  validNeuron(p.layer, p.n);
+  if (!Number.isFinite(p.dose) || Math.abs(p.dose) < DOSE.min || Math.abs(p.dose) > DOSE.max)
+    throw new ConvexError(`Doses are ${DOSE.min} to ${DOSE.max} (or negative)`);
+  return { ...p, dose: Math.round(p.dose * 100) / 100 };
 }
 
 export function checkWorker(secret: string) {

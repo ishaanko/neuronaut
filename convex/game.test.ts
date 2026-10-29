@@ -106,7 +106,8 @@ describe("GPU budget", () => {
   test("past the global queue cap, new GPU work is refused for everyone", async () => {
     const { t, player } = await setup();
     await t.run(async (ctx) => {
-      for (let i = 0; i < GPU.queue; i++) await ctx.db.insert("jobs", { kind: "profile", key: `profile:x${i}`, args: {}, priority: 0, status: "pending" });
+      for (let i = 0; i < GPU.queue; i++)
+        await ctx.db.insert("jobs", { kind: "profile", key: `profile:x${i}`, args: { layer: 0, n: i }, priority: 0, status: "pending" });
     });
     const bob = await player("bob");
     await expect(bob.mutation(api.neurons.scan, { layer: 2, n: 2 })).rejects.toThrow("GPU is busy");
@@ -140,7 +141,8 @@ describe("GPU budget", () => {
     const { t, player, putProfiles } = await setup();
     await putProfiles([profile(3, 3, axis(3))]);
     await t.run(async (ctx) => {
-      for (let i = 0; i < GPU.queue; i++) await ctx.db.insert("jobs", { kind: "profile", key: `profile:x${i}`, args: {}, priority: 0, status: "pending" });
+      for (let i = 0; i < GPU.queue; i++)
+        await ctx.db.insert("jobs", { kind: "profile", key: `profile:x${i}`, args: { layer: 0, n: i }, priority: 0, status: "pending" });
     });
     const bob = await player("bob");
     await expect(bob.mutation(api.neurons.scan, { layer: 3, n: 3 })).resolves.toMatchObject({ layer: 3, n: 3 });
@@ -151,11 +153,12 @@ describe("job queue", () => {
   test("players' jobs are handed out first, and background work one job at a time", async () => {
     const { t } = await setup();
     await t.run(async (ctx) => {
-      for (const key of ["par:a", "par:b", "daily:c"]) await ctx.db.insert("jobs", { kind: "par", key, args: {}, priority: 1, status: "pending" });
+      const args = { slug: "a", prompts: [], anchors: [], maxNeurons: 1, brief: "" };
+      for (const key of ["par:a", "par:b", "daily:c"]) await ctx.db.insert("jobs", { kind: "par", key, args, priority: 1, status: "pending" });
     });
     const claim = () => t.mutation(api.worker.claim, { secret: SECRET, max: 24 });
     expect((await claim()).length).toBe(1); // one par, not all three in one batch
-    await t.run((ctx) => ctx.db.insert("jobs", { kind: "profile", key: "profile:1:1", args: {}, priority: 0, status: "pending" }));
+    await t.run((ctx) => ctx.db.insert("jobs", { kind: "profile", key: "profile:1:1", args: { layer: 1, n: 1 }, priority: 0, status: "pending" }));
     const next = await claim();
     expect(next.map((j) => j.kind)).toEqual(["profile"]); // the player's scan jumps the remaining pars
   });
@@ -341,7 +344,7 @@ describe.each([false, true])("bounty settlement (standings table: %s)", (ranked)
     const b = (await t.run((ctx) => ctx.db.query("bounties").first()))!;
     const judge = async (who: Awaited<ReturnType<typeof player>>, n: number, score: number) => {
       await who.mutation(api.bounties.submit, { slug: b.slug, pushes: [{ layer: 1, n, dose: 0.5 }] });
-      const job = (await t.run((ctx) => ctx.db.query("jobs").collect())).find((j) => j.kind === "judge" && j.status === "pending")!;
+      const job = (await t.run((ctx) => ctx.db.query("jobs").collect())).filter((j) => j.kind === "judge").find((j) => j.status === "pending")!;
       await t.mutation(api.worker.finishJudge, { secret: SECRET, id: job._id, entryId: job.args.entryId, score, concept: 0, coherence: 0, texts: [] });
     };
     const [ann, ben] = [await player("ann"), await player("ben")];
@@ -388,7 +391,7 @@ describe.each([false, true])("bounty settlement (standings table: %s)", (ranked)
     await t.mutation(api.worker.finishJudge, { ...judged, score: 500 });
     await t.mutation(api.worker.finishJudge, { ...judged, score: 5 });
     await t.mutation(api.worker.fail, { secret: SECRET, id: job._id, error: "late" });
-    const entry = (await t.run((ctx) => ctx.db.get(job.args.entryId as Id<"entries">)))!;
+    const entry = (await t.run((ctx) => ctx.db.get(job.args.entryId)))!;
     expect([entry.status, entry.score]).toEqual(["done", 500]);
   });
 

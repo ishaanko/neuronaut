@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
-import { bumpTally } from "./daily";
-import { COVERAGE_BINS, globalStats } from "./jobs";
-import { MODEL, neuronKey } from "./lib";
+import { bumpTally, dailyFor } from "./daily";
+import { profileOf } from "./lib";
+import { neuronKey } from "./rules";
+import { countCatches, globalStats } from "./stats";
 
 // Operator tools, run with `npx convex run admin:<name>`. Not callable from the client.
 
@@ -26,7 +27,7 @@ export const resetDailies = internalMutation({
 export const answer = internalQuery({
   args: { date: v.string() },
   handler: async (ctx, { date }) => {
-    const d = await ctx.db.query("dailies").withIndex("by_date", (q) => q.eq("date", date)).unique();
+    const d = await dailyFor(ctx, date);
     return d ? { layer: d.layer, n: d.n } : null;
   },
 });
@@ -34,8 +35,7 @@ export const answer = internalQuery({
 // Whether Convex already has a neuron's measurements. The E2E guesses one that doesn't, so its guess needs the worker.
 export const profiled = internalQuery({
   args: { layer: v.number(), n: v.number() },
-  handler: async (ctx, { layer, n }) =>
-    !!(await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", neuronKey(layer, n))).unique()),
+  handler: async (ctx, { layer, n }) => !!(await profileOf(ctx, neuronKey(layer, n))),
 });
 
 // The kinds of jobs the worker is running right now.
@@ -53,7 +53,7 @@ export const resetPlayers = internalMutation({
   handler: async (ctx) => {
     let n = 0;
     for (const c of await ctx.db.query("catches").collect()) {
-      const p = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", c.key)).unique();
+      const p = await profileOf(ctx, c.key);
       if (p) await ctx.db.patch(p._id, { caught: false });
     }
     for (const t of ["scans", "catches", "guesses", "results", "opens", "tallies", "entries", "standings", "players"] as const)
@@ -61,7 +61,7 @@ export const resetPlayers = internalMutation({
         await ctx.db.delete(d._id);
         n++;
       }
-    const s = await ctx.db.query("stats").withIndex("by_name", (q) => q.eq("name", "global")).unique();
+    const s = await globalStats(ctx);
     if (s) await ctx.db.patch(s._id, { caught: 0, coverage: s.coverage.map(() => 0) });
     return n;
   },
@@ -80,20 +80,15 @@ export const removePlayer = internalMutation({
     const p = await ctx.db.query("players").withIndex("by_handle", (q) => q.eq("handleLower", handle.toLowerCase())).unique();
     if (!p) return false;
     const catches = await ctx.db.query("catches").withIndex("by_player", (q) => q.eq("playerId", p._id)).collect();
-    const s = await globalStats(ctx);
-    if (s && catches.length) {
-      const coverage = [...s.coverage];
-      for (const c of catches) coverage[c.layer * COVERAGE_BINS + Math.floor((c.n * COVERAGE_BINS) / MODEL.width)] -= 1;
-      await ctx.db.patch(s._id, { caught: s.caught - catches.length, coverage });
-    }
+    if (catches.length) await countCatches(ctx, catches, -1);
     for (const c of catches) {
-      const prof = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", c.key)).unique();
+      const prof = await profileOf(ctx, c.key);
       if (prof) await ctx.db.patch(prof._id, { caught: false });
       await ctx.db.delete(c._id);
     }
     // their results leave the puzzles' player and solver counts
     for (const r of await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()) {
-      const d = await ctx.db.query("dailies").withIndex("by_date", (q) => q.eq("date", r.date)).unique();
+      const d = await dailyFor(ctx, r.date);
       if (d && !r.practice) await bumpTally(ctx, d, r.solved, -1);
     }
     // their places on bounty leaderboards

@@ -1,15 +1,78 @@
 import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import { v, type PropertyValidators } from "convex/values";
+import { EFFECTS, RARITIES } from "./rules";
 
 export const push = v.object({ layer: v.number(), n: v.number(), dose: v.number() });
 export const ladder = v.object({ ranks: v.array(v.number()), cos: v.array(v.float64()) }); // see rules.ts ladderRank
-export const jobKind = v.union(v.literal("profile"), v.literal("judge"), v.literal("daily"), v.literal("par"), v.literal("combo"));
 export const difficulty = v.union(v.literal("easy"), v.literal("medium"), v.literal("hard")); // by weekday, worker/main.py
-export const effect = v.union(v.literal("quiet"), v.literal("shift"), v.literal("word"), v.literal("breaks")); // rules.ts EFFECTS
+export const effect = v.union(...EFFECTS.map((e) => v.literal(e)));
+export const rarity = v.union(...RARITIES.map((r) => v.literal(r)));
+
+// What the worker measures about a neuron (worker.ts putProfiles); a profile row adds its key, rarity and catch state.
+export const measured = {
+  layer: v.number(),
+  n: v.number(),
+  texts: v.array(v.string()), // steered replies to the profile prompts
+  words: v.array(v.string()),
+  z: v.number(), // strength against random directions
+  nll: v.number(),
+  distinct: v.number(),
+  embedding: v.array(v.float64()),
+};
+
+// A generated puzzle as the worker hands it over (worker.ts putDaily); its row adds the answer's key.
+export const puzzle = {
+  date: v.string(),
+  layer: v.number(),
+  n: v.number(),
+  prompts: v.array(v.string()),
+  texts: v.array(v.string()),
+  baseline: v.array(v.string()),
+  embedding: v.array(v.float64()),
+  ladder, // how close every measured neuron is to the answer, sampled by rank: guess ranks and heat come from it
+  band: v.array(v.number()), // [lo, hi] layers, a hint
+  hint: v.string(), // the answer's top steer token, a hint
+  difficulty: v.optional(difficulty),
+};
+
+// Work for the GPU worker, one row shape per kind: `args` is what the worker (worker/main.py) reads. key dedupes (one
+// pending profile per neuron).
+const job = <K extends string, A extends PropertyValidators>(kind: K, args: A) =>
+  v.object({
+    kind: v.literal(kind),
+    args: v.object(args),
+    key: v.string(),
+    priority: v.number(), // 0 = a player is waiting, GUEST_PRIORITY (jobs.ts) = a guest is, 1 = background
+    status: v.union(v.literal("pending"), v.literal("running"), v.literal("done"), v.literal("failed")),
+    startedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    by: v.optional(v.id("players")), // the player who asked, for their GPU budget
+  });
+const jobRow = v.union(
+  job("profile", { layer: v.number(), n: v.number() }),
+  job("judge", {
+    entryId: v.id("entries"),
+    slug: v.string(),
+    pushes: v.array(push),
+    prompts: v.array(v.string()),
+    anchors: v.array(v.string()),
+    question: v.optional(v.string()), // absent on bounties opened before the yes/no judge
+  }),
+  job("par", {
+    slug: v.string(),
+    prompts: v.array(v.string()),
+    anchors: v.array(v.string()),
+    question: v.optional(v.string()),
+    maxNeurons: v.number(),
+    brief: v.string(),
+  }),
+  job("daily", { date: v.string(), exclude: v.array(v.string()) }),
+  job("combo", { experimentId: v.id("experiments"), a: push, b: push }),
+);
+export const jobKind = v.union(...jobRow.members.map((m) => m.fields.kind));
 
 export default defineSchema({
-  // One row, "global": totals and the dex coverage grid (layers x COVERAGE_BINS catch counts).
-  // Also the profile prompts and the unsteered model's replies to them, which every card compares against.
+  // One row, "global" (stats.ts).
   stats: defineTable({
     name: v.string(),
     profiled: v.number(), // no longer counted (worker.ts putProfiles); swept replaced it
@@ -33,16 +96,9 @@ export default defineSchema({
 
   // What a neuron does, measured by the GPU worker. Hidden from a player until they scan or guess it, or it is caught.
   profiles: defineTable({
+    ...measured,
     key: v.string(), // "layer:n"
-    layer: v.number(),
-    n: v.number(),
-    texts: v.array(v.string()), // steered replies to the profile prompts
-    words: v.array(v.string()),
-    z: v.number(), // strength against random directions
-    nll: v.number(),
-    distinct: v.number(),
-    rarity: v.string(),
-    embedding: v.array(v.float64()),
+    rarity,
     caught: v.boolean(),
   })
     .index("by_key", ["key"])
@@ -58,7 +114,7 @@ export default defineSchema({
     zone: v.optional(v.string()),
     x: v.optional(v.number()),
     y: v.optional(v.number()),
-    cell: v.optional(v.number()), // row * grid + column, the square of src/data/zones.json it falls in
+    cell: v.optional(v.number()), // row * grid + column, the square of src/map/zones.json it falls in
     r: v.optional(v.number()), // uniform in [0, 1), to pick a random neuron in a square
     focus: v.optional(v.number()), // in how many of the 4 profile replies its most consistent word shows up
     focusWord: v.optional(v.string()),
@@ -107,7 +163,7 @@ export default defineSchema({
     n: v.number(),
     name: v.string(),
     handle: v.optional(v.string()), // the catcher's, copied so lists don't read (and rerun on) their player row
-    rarity: v.string(),
+    rarity,
     points: v.number(),
     uniqueness: v.number(),
     date: v.string(),
@@ -117,17 +173,7 @@ export default defineSchema({
     .index("by_player", ["playerId"])
     .index("by_player_date", ["playerId", "date"]),
 
-  // Work for the GPU worker. key dedupes (one pending profile per neuron).
-  jobs: defineTable({
-    kind: jobKind,
-    key: v.string(),
-    args: v.any(),
-    priority: v.number(), // 0 = a player is waiting, GUEST_PRIORITY (jobs.ts) = a guest is, 1 = background
-    status: v.union(v.literal("pending"), v.literal("running"), v.literal("done"), v.literal("failed")),
-    startedAt: v.optional(v.number()),
-    error: v.optional(v.string()),
-    by: v.optional(v.id("players")), // the player who asked, for their GPU budget
-  })
+  jobs: defineTable(jobRow)
     .index("by_status_priority", ["status", "priority"])
     .index("by_status_kind_priority", ["status", "kind", "priority"])
     .index("by_by_status", ["by", "status"])
@@ -142,20 +188,7 @@ export default defineSchema({
   // One row: when the worker last checked in (worker.ts heartbeat), so a guess that hangs can say the worker is down.
   heartbeats: defineTable({ at: v.number() }),
 
-  dailies: defineTable({
-    date: v.string(),
-    key: v.string(),
-    layer: v.number(),
-    n: v.number(),
-    prompts: v.array(v.string()),
-    texts: v.array(v.string()),
-    baseline: v.array(v.string()),
-    embedding: v.array(v.float64()),
-    ladder, // how close every measured neuron is to the answer, sampled by rank: guess ranks and heat come from it
-    band: v.array(v.number()), // [lo, hi] layers, a hint
-    hint: v.string(), // the answer's top steer token, a hint
-    difficulty: v.optional(difficulty),
-  }).index("by_date", ["date"]),
+  dailies: defineTable({ ...puzzle, key: v.string() }).index("by_date", ["date"]),
 
   // How many played each puzzle live and how many solved it, counted as results come in (daily.ts bumpTally), so the
   // daily page and the archive never read every result. A puzzle doc is ~25 KB (its ladder), so the archive lists these.

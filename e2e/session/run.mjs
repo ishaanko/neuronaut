@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 const root = process.cwd();
 const mock = resolve(root, "e2e/session/mocks.ts");
-const source = resolve(root, "src/lib/session.tsx");
+const source = resolve(root, "src/players/session.tsx");
 const result = await build({
   configFile: false, root, logLevel: "error",
   plugins: process.env.SESSION_SOURCE ? [{ name: "original-session", enforce: "pre", load(id) {

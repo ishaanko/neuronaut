@@ -13,6 +13,7 @@ export const GPU = { perPlayer: 4, queue: 200, guests: 50, waiters: 100 };
 // guests who already played are unaffected.
 export const NEW_GUESTS_PER_MINUTE = 120;
 export const HINTS = { band: 5, token: 10 }; // daily hints unlock after this many guesses
+export const REPLY_TOKENS = 40; // replies stop after this many tokens (worker/engine.py MAX_NEW), so most end mid-sentence
 export const SOLVE_COS = 0.97; // a guess this similar to the answer counts as solving it
 export const LAUNCH = "2026-10-27";
 
@@ -45,13 +46,21 @@ export function rarity(z: number, nll: number, distinct: number): Rarity {
 
 export const neuronKey = (layer: number, n: number) => `${layer}:${n}`;
 
+export const isNeuron = (layer: number, n: number) =>
+  Number.isInteger(layer) && Number.isInteger(n) && layer >= 0 && layer < MODEL.layers && n >= 0 && n < MODEL.width;
+
 export function validNeuron(layer: number, n: number) {
-  if (!Number.isInteger(layer) || !Number.isInteger(n) || layer < 0 || layer >= MODEL.layers || n < 0 || n >= MODEL.width)
-    throw new ConvexError(`no neuron L${layer} N${n}: layers 0-${MODEL.layers - 1}, neurons 0-${MODEL.width - 1}`);
+  if (!isNeuron(layer, n)) throw new ConvexError(`no neuron L${layer} N${n}: layers 0-${MODEL.layers - 1}, neurons 0-${MODEL.width - 1}`);
 }
 
 export function today(now = Date.now()) {
   return new Date(now).toISOString().slice(0, 10);
+}
+
+// A real UTC date written YYYY-MM-DD, the form puzzle dates take.
+export function isDate(s: string) {
+  const t = /^\d{4}-\d{2}-\d{2}$/.test(s) ? Date.parse(s + "T00:00:00Z") : NaN;
+  return Number.isFinite(t) && today(t) === s;
 }
 
 export function addDays(date: string, days: number) {
@@ -92,15 +101,21 @@ export function heat(rank: number, total: number): number {
   return Math.max(0, Math.min(99, Math.round(100 * (1 - Math.log(rank) / Math.log(total)))));
 }
 
+export const BOUNTY_DAYS = 7; // how long each bounty runs
+// Doses a push may use, either sign: bounty entries and lab experiments.
+export const DOSE = { min: 0.05, max: 1.0 };
+
 // Whether a bounty is upcoming, open or closed at `now`. Clients work this out on their own clock: a query that read the
 // time would keep showing a bounty as upcoming after it opened (Convex doesn't rerun queries as time passes).
 export function bountyState(b: { startsAt: number; endsAt: number }, now: number) {
   return now < b.startsAt ? "upcoming" : now < b.endsAt ? "open" : "closed";
 }
 
-// A bounty entry's efficiency: free up to a total dose of 0.5, then 25% off per unit, never below 40%. The worker's
-// judge() in worker/engine.py applies it to the score; this copy only explains the score on the page, so keep them equal.
+// A bounty entry's efficiency: free up to a total dose of EFFICIENCY.free, then EFFICIENCY.perUnit off per unit, never
+// below EFFICIENCY.floor. The worker's judge() in worker/engine.py applies it to the score; this copy only explains the
+// score on the page, so keep them equal.
+export const EFFICIENCY = { free: 0.5, perUnit: 0.25, floor: 0.4 };
 export function efficiency(pushes: { dose: number }[]) {
   const dose = pushes.reduce((s, p) => s + Math.abs(p.dose), 0);
-  return Math.min(1, Math.max(0.4, 1 - 0.25 * (dose - 0.5)));
+  return Math.min(1, Math.max(EFFICIENCY.floor, 1 - EFFICIENCY.perUnit * (dose - EFFICIENCY.free)));
 }
