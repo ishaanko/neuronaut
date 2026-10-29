@@ -287,10 +287,29 @@ describe("bounty settlement", () => {
     expect(await points()).toEqual({ ann: PRIZES[0] + PAR_BONUS });
   });
 
-  test("a NaN score or a pending entry can't win a prize", async () => {
-    const { t, points } = await bountyWith([{ who: "nan", score: NaN }, { who: "slow", score: 999, status: "pending" }, { who: "oki", score: 10 }]);
+  test("a NaN score can't win a prize", async () => {
+    const { t, points } = await bountyWith([{ who: "nan", score: NaN }, { who: "oki", score: 10 }]);
     await t.mutation(internal.bounties.settle, {});
-    expect(await points()).toEqual({ nan: 0, slow: 0, oki: PRIZES[0] });
+    expect(await points()).toEqual({ nan: 0, oki: PRIZES[0] });
+  });
+
+  test("a bounty settles the moment it ends, but not while an entry made before then is still being judged", async () => {
+    const { t, player } = await setup();
+    await t.mutation(internal.bounties.ensure, {});
+    const b = (await t.run((ctx) => ctx.db.query("bounties").first()))!;
+    const ann = await player("ann");
+    vi.setSystemTime(b.endsAt - 1000);
+    await ann.mutation(api.bounties.submit, { slug: b.slug, pushes: [{ layer: 1, n: 1, dose: 0.5 }] });
+    vi.setSystemTime(b.endsAt);
+    await t.finishAllScheduledFunctions(vi.runAllTimers); // the settle ensure scheduled for endsAt
+    expect((await t.run((ctx) => ctx.db.get(b._id)))!.settled).toBe(false);
+    const job = (await t.run((ctx) => ctx.db.query("jobs").collect())).find((j) => j.kind === "judge")!;
+    await t.mutation(api.worker.finishJudge, {
+      secret: SECRET, id: job._id, entryId: job.args.entryId, score: 700, concept: 0.8, coherence: 0.9, texts: ["r"],
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await t.run((ctx) => ctx.db.get(b._id)))!.settled).toBe(true);
+    expect((await ann.query(api.players.me, {}))!.points).toBe(PRIZES[0]);
   });
 
   test("a NaN or infinite dose is refused before it reaches the judge", async () => {

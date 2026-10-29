@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
-import { internalMutation, mutation, query, type QueryCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { BOUNTY_DAYS, BOUNTY_STAGGER_HOURS, JUDGE_PROMPTS, POOL } from "./bountyPool";
 import { enqueue } from "./jobs";
 import { LIMITS, playerFor, requirePlayer, validNeuron } from "./lib";
@@ -103,6 +103,13 @@ export const submit = mutation({
   },
 });
 
+// After an entry's judgment lands: if its bounty has already ended, try to settle it now rather than at the next hour.
+export async function settleIfEnded(ctx: MutationCtx, entryId: Id<"entries">) {
+  const e = await ctx.db.get(entryId);
+  const b = e && (await ctx.db.get(e.bountyId));
+  if (b && !b.settled && b.endsAt <= Date.now()) await ctx.scheduler.runAfter(0, internal.bounties.settle, {});
+}
+
 // Hourly: keep OPEN bounties running, opening the next from the pool every BOUNTY_STAGGER_HOURS. Each new bounty gets
 // a par job: the worker's own best attempt, which players try to beat.
 export const ensure = internalMutation({
@@ -135,13 +142,16 @@ export const ensure = internalMutation({
   },
 });
 
-// When a bounty ends (ensure schedules it), and hourly in case that run failed: pay out bounties that closed.
+// When a bounty ends (ensure schedules it), and hourly in case that run failed: pay out bounties that closed. One
+// with entries still being judged waits for them: the last judgment (worker.ts finishJudge, fail) runs this again.
 export const settle = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
     const closed = await ctx.db.query("bounties").withIndex("by_ends", (q) => q.lte("endsAt", now)).collect();
     for (const b of closed.filter((b) => !b.settled)) {
+      const judging = await ctx.db.query("entries").withIndex("by_bounty", (q) => q.eq("bountyId", b._id)).filter((q) => q.eq(q.field("status"), "pending")).first();
+      if (judging) continue;
       const top = await standings(ctx, b);
       for (const [i, e] of top.entries()) {
         const bonus = (PRIZES[i] ?? 0) + (b.par && (e.score ?? 0) > b.par.score ? PAR_BONUS : 0);

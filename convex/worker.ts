@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
+import { settleIfEnded } from "./bounties";
 import { refundPending, resolvePending } from "./daily";
 import { bumpStats, globalStats } from "./jobs";
 import { checkWorker, neuronKey, rarity, today } from "./lib";
@@ -88,7 +89,10 @@ export const fail = mutation({
     const job = await ctx.db.get(id);
     if (!job) return;
     await ctx.db.patch(id, { status: "failed", error: error.slice(0, 2000) });
-    if (job.kind === "judge") await ctx.db.patch(job.args.entryId as Id<"entries">, { status: "failed" });
+    if (job.kind === "judge") {
+      await ctx.db.patch(job.args.entryId as Id<"entries">, { status: "failed" });
+      await settleIfEnded(ctx, job.args.entryId as Id<"entries">);
+    }
     if (job.kind === "combo") await ctx.db.patch(job.args.experimentId as Id<"experiments">, { status: "failed" });
     if (job.kind === "profile") await refundPending(ctx, neuronKey(job.args.layer as number, job.args.n as number));
   },
@@ -157,6 +161,7 @@ export const finishJudge = mutation({
     if (!(await ctx.db.get(id))) return; // admin:removePlayer deleted the job (and its row) while it ran
     await ctx.db.patch(entryId, { status: "done", ...result });
     await ctx.db.patch(id, { status: "done" });
+    await settleIfEnded(ctx, entryId);
   },
 });
 
