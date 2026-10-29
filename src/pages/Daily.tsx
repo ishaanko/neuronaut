@@ -198,6 +198,15 @@ export function Daily() {
   const [open, setOpen] = useState<string | null>(null);
   const [layer, setLayer] = useState("");
   const [n, setN] = useState("");
+  // a draft typed for one puzzle's clues doesn't carry over when the page turns over to the next one
+  const [draftFor, setDraftFor] = useState(d?.date);
+  if (d && d.date !== draftFor) {
+    setDraftFor(d.date);
+    if (draftFor !== undefined) {
+      setLayer("");
+      setN("");
+    }
+  }
   const [error, setError] = useState<string | null>(null);
   const [shaking, setShaking] = useState(false);
   const [showNormal, setShowNormal] = useState(false);
