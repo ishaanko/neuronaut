@@ -47,7 +47,7 @@ export const card = query({
       : null;
     const scanned = !!scan;
     const caught = await catchOf(ctx, key);
-    const owner = caught ? await ctx.db.get(caught.playerId) : null;
+    const owner = caught && !caught.handle ? await ctx.db.get(caught.playerId) : null;
     const visible = scanned || !!caught;
     const prof = visible ? await profileOf(ctx, key) : null;
     const place = visible ? await placeOf(ctx, layer, n) : null;
@@ -64,7 +64,7 @@ export const card = query({
       place: place?.x !== undefined && place.y !== undefined ? { x: place.x, y: place.y, zone: place.zone ?? "" } : null,
       focus: place?.focus !== undefined ? { of: 4, n: place.focus, word: place.focusWord ?? null } : null,
       prediction: scan?.prediction ? { said: scan.prediction, right: !!scan.right } : null,
-      caught: caught ? { handle: owner?.handle ?? "?", name: caught.name, points: caught.points, uniqueness: caught.uniqueness } : null,
+      caught: caught ? { handle: caught.handle ?? owner?.handle ?? "?", name: caught.name, points: caught.points, uniqueness: caught.uniqueness } : null,
       mine: !!(caught && player && caught.playerId === player._id),
     };
   },
@@ -149,7 +149,7 @@ export const catchCommit = internalMutation({
     const prof = (await profileOf(ctx, key))!;
     const rarity = prof.rarity as Rarity;
     const points = Math.round(POINTS[rarity] * (1 + uniqueness));
-    await ctx.db.insert("catches", { playerId: player._id, key, layer, n, name, rarity, points, uniqueness, date });
+    await ctx.db.insert("catches", { playerId: player._id, handle: player.handle, key, layer, n, name, rarity, points, uniqueness, date });
     await ctx.db.patch(prof._id, { caught: true });
     await ctx.db.patch(player._id, { points: player.points + points, caught: player.caught + 1 });
     await bumpStats(ctx, { caught: { layer, n } });
@@ -184,7 +184,7 @@ export const dex = query({
       ...page,
       page: await Promise.all(
         page.page.map(async (c) => {
-          if (!handles.has(c.playerId)) handles.set(c.playerId, (await ctx.db.get(c.playerId))?.handle ?? "?");
+          if (!handles.has(c.playerId)) handles.set(c.playerId, c.handle ?? (await ctx.db.get(c.playerId))?.handle ?? "?");
           const prof = await profileOf(ctx, c.key);
           return {
             layer: c.layer,
@@ -220,7 +220,7 @@ export const overview = query({
           n: c.n,
           name: c.name,
           rarity: c.rarity as Rarity,
-          handle: (await ctx.db.get(c.playerId))?.handle ?? "?",
+          handle: c.handle ?? (await ctx.db.get(c.playerId))?.handle ?? "?",
           at: c._creationTime,
         })),
       ),

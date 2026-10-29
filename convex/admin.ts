@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
+import { bumpTally } from "./daily";
 import { COVERAGE_BINS, globalStats } from "./jobs";
 import { MODEL, neuronKey } from "./lib";
 
@@ -14,6 +15,7 @@ export const resetDailies = internalMutation({
       for (const g of await ctx.db.query("guesses").filter((q) => q.eq(q.field("date"), d.date)).collect()) await ctx.db.delete(g._id);
       for (const r of await ctx.db.query("results").withIndex("by_date", (q) => q.eq("date", d.date)).collect()) await ctx.db.delete(r._id);
       for (const o of await ctx.db.query("opens").filter((q) => q.eq(q.field("date"), d.date)).collect()) await ctx.db.delete(o._id);
+      for (const t of await ctx.db.query("tallies").withIndex("by_date", (q) => q.eq("date", d.date)).collect()) await ctx.db.delete(t._id);
       await ctx.db.delete(d._id);
     }
     return ds.length;
@@ -43,7 +45,8 @@ export const running = internalQuery({
     (await ctx.db.query("jobs").withIndex("by_status_priority", (q) => q.eq("status", "running")).collect()).map((j) => j.kind),
 });
 
-// Deletes every player and what they did (scans, catches, guesses, results, entries), and un-catches their neurons.
+// Deletes every player and what they did (scans, catches, guesses, results, entries, the puzzles' tallies), and
+// un-catches their neurons.
 // For dev deployments and for moving to a new players schema; puzzles, bounties and measured neurons stay.
 export const resetPlayers = internalMutation({
   args: {},
@@ -53,7 +56,7 @@ export const resetPlayers = internalMutation({
       const p = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", c.key)).unique();
       if (p) await ctx.db.patch(p._id, { caught: false });
     }
-    for (const t of ["scans", "catches", "guesses", "results", "opens", "entries", "players"] as const)
+    for (const t of ["scans", "catches", "guesses", "results", "opens", "tallies", "entries", "players"] as const)
       for (const d of await ctx.db.query(t).collect()) {
         await ctx.db.delete(d._id);
         n++;
@@ -87,6 +90,11 @@ export const removePlayer = internalMutation({
       const prof = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", c.key)).unique();
       if (prof) await ctx.db.patch(prof._id, { caught: false });
       await ctx.db.delete(c._id);
+    }
+    // their results leave the puzzles' player and solver counts
+    for (const r of await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()) {
+      const d = await ctx.db.query("dailies").withIndex("by_date", (q) => q.eq("date", r.date)).unique();
+      if (d && !r.practice) await bumpTally(ctx, d, r.solved, -1);
     }
     const rows = [
       ...(await ctx.db.query("scans").withIndex("by_player", (q) => q.eq("playerId", p._id)).collect()),

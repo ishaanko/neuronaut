@@ -117,7 +117,7 @@ test("a practice puzzle scores like the real one but pays nothing and leaves the
   await expect(alice.mutation(api.daily.guess, { layer: 1, n: 1, date: "2026-10-27" })).rejects.toThrow("already finished");
   await expect(alice.mutation(api.daily.guess, { layer: 1, n: 1, date: "2026-10-29" })).rejects.toThrow("not out yet");
   // practice results don't count toward a past day's players and solvers
-  expect(await t.query(api.daily.current, { date: "2026-10-27" })).toMatchObject({ players: 0, solvers: 0 });
+  expect(await t.query(api.daily.tally, { date: "2026-10-27" })).toEqual({ players: 0, solvers: 0 });
 });
 
 test("a lab experiment queues one GPU job for its player, and only the worker can finish it", async () => {

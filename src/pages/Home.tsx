@@ -25,6 +25,7 @@ export function Home() {
   const overview = useQuery(api.neurons.overview);
   const { guest } = useSession();
   const daily = useQuery(api.daily.current, { guest });
+  const tally = useQuery(api.daily.tally, daily ? { date: daily.date } : "skip");
   const bounties = useQuery(api.bounties.list);
   const [example, setExample] = useState(false);
   const now = useNow(true, 30_000);
@@ -39,7 +40,7 @@ export function Home() {
         : "you missed it"
       : daily.guesses.length
         ? `${daily.guesses.length}/${daily.limit} guesses in`
-        : `${daily.solvers} solved so far`;
+        : `${tally?.solvers ?? 0} solved so far`;
 
   return (
     <div className="space-y-12 lg:space-y-16">

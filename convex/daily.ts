@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
+import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { enqueue, GUEST_PRIORITY } from "./jobs";
 import { placeOf } from "./map";
 import {
@@ -57,7 +57,6 @@ export const current = query({
     const result = player
       ? await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", player._id).eq("date", d)).unique()
       : null;
-    const all = (await ctx.db.query("results").withIndex("by_date", (q) => q.eq("date", d)).collect()).filter((r) => !r.practice);
     const finished = !!result;
     const first = guesses.length ? Math.min(...guesses.map((g) => g._creationTime)) : undefined;
     const at = async (layer: number, n: number) => {
@@ -96,9 +95,17 @@ export const current = query({
         ? { solved: result.solved, guesses: result.guesses, heats: result.heats, practice: !!result.practice, seconds: result.seconds ?? null }
         : null,
       answer: finished ? { layer: daily.layer, n: daily.n, place: await at(daily.layer, daily.n) } : null,
-      players: all.length,
-      solvers: all.filter((r) => r.solved).length,
     };
+  },
+});
+
+// How many played a puzzle live and how many solved it. Kept out of `current`, so another player's result reruns only
+// this small query for everyone watching, not their whole daily.
+export const tally = query({
+  args: { date: v.string() },
+  handler: async (ctx, { date }) => {
+    const t = await ctx.db.query("tallies").withIndex("by_date", (q) => q.eq("date", date)).unique();
+    return t ? { players: t.players, solvers: t.solvers } : await countResults(ctx, date);
   },
 });
 
@@ -107,18 +114,18 @@ export const archive = query({
   args: { guest: guestArg },
   handler: async (ctx, { guest }) => {
     const player = await playerFor(ctx, guest);
-    const past = await ctx.db.query("dailies").withIndex("by_date", (q) => q.lt("date", today())).order("desc").take(60);
+    const past = await ctx.db.query("tallies").withIndex("by_date", (q) => q.lt("date", today())).order("desc").take(60);
     return await Promise.all(
       past.map(async (d) => {
-        const all = await ctx.db.query("results").withIndex("by_date", (q) => q.eq("date", d.date)).collect();
-        const live = all.filter((r) => !r.practice);
-        const mine = player ? all.find((r) => r.playerId === player._id) : undefined;
+        const mine = player
+          ? await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", player._id).eq("date", d.date)).unique()
+          : null;
         return {
           date: d.date,
           number: dailyNumber(d.date),
           difficulty: d.difficulty ?? null,
-          players: live.length,
-          solvers: live.filter((r) => r.solved).length,
+          players: d.players,
+          solvers: d.solvers,
           mine: mine ? { solved: mine.solved, guesses: mine.guesses, practice: !!mine.practice } : null,
         };
       }),
@@ -152,6 +159,7 @@ async function settle(ctx: MutationCtx, playerId: Doc<"players">["_id"], daily: 
   // the clock stops when the last counted guess was made, not when the GPU got round to scoring it
   const start = await startedAt(ctx, playerId, daily.date, gs[0]?._creationTime);
   const seconds = start === null ? undefined : Math.round((used[used.length - 1]._creationTime - start) / 1000);
+  if (!practice) await bumpTally(ctx, daily, solved, 1); // before the insert: a missing tally counts the results so far
   await ctx.db.insert("results", { playerId, date: daily.date, solved, guesses: used.length, heats: used.map((g) => g.heat ?? 0), practice, seconds });
   await reveal(ctx, playerId, daily);
   if (practice) return;
@@ -249,6 +257,44 @@ export async function refundPending(ctx: MutationCtx, key: string) {
     if (daily) await settle(ctx, g.playerId, daily);
   }
 }
+
+async function countResults(ctx: QueryCtx, date: string) {
+  const live = (await ctx.db.query("results").withIndex("by_date", (q) => q.eq("date", date)).collect()).filter((r) => !r.practice);
+  return { players: live.length, solvers: live.filter((r) => r.solved).length };
+}
+
+// A puzzle's tally row. Puzzles from before tallies existed get one counted from their results, once.
+async function tallyFor(ctx: MutationCtx, daily: Pick<Doc<"dailies">, "date" | "difficulty">) {
+  const row = await ctx.db.query("tallies").withIndex("by_date", (q) => q.eq("date", daily.date)).unique();
+  if (row) return row;
+  const id = await ctx.db.insert("tallies", { date: daily.date, difficulty: daily.difficulty, ...(await countResults(ctx, daily.date)) });
+  return (await ctx.db.get(id))!;
+}
+
+// Counts a live result in (by 1) or out (by -1, admin.ts removePlayer). Call it before inserting or deleting the
+// result: a puzzle without a tally row yet is counted from its results first.
+export async function bumpTally(ctx: MutationCtx, daily: Pick<Doc<"dailies">, "date" | "difficulty">, solved: boolean, by: 1 | -1) {
+  const t = await tallyFor(ctx, daily);
+  await ctx.db.patch(t._id, { players: t.players + by, solvers: t.solvers + (solved ? by : 0) });
+}
+
+// Hourly, apart from ensure so a slow count never holds up new puzzles: gives puzzles from before tallies existed
+// their tally row, a few per run. It checks the dates the archive can list, which costs a few tiny reads once done.
+export const countOld = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let left = 10;
+    for (let i = -60; i <= BUFFER_DAYS && left > 0; i++) {
+      const date = addDays(today(), i);
+      if (await ctx.db.query("tallies").withIndex("by_date", (q) => q.eq("date", date)).unique()) continue;
+      const d = await dailyFor(ctx, date);
+      if (d) {
+        await tallyFor(ctx, d);
+        left--;
+      }
+    }
+  },
+});
 
 // Hourly: queue puzzle generation for any of the next BUFFER_DAYS days that has none.
 export const ensure = internalMutation({

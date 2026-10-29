@@ -103,6 +103,8 @@ export const putProfiles = mutation({
   args: { secret: v.string(), jobIds: v.array(v.id("jobs")), profiles: v.array(profile) },
   handler: async (ctx, { secret, jobIds, profiles }) => {
     checkWorker(secret);
+    // No count in stats: that row is on every page, and bumping it on each guess's profile reran them all for every
+    // visitor. The dex header counts the sweep instead (putSwept).
     let added = 0;
     for (const p of profiles) {
       const key = neuronKey(p.layer, p.n);
@@ -111,7 +113,6 @@ export const putProfiles = mutation({
       await resolvePending(ctx, key, p.embedding);
       added++;
     }
-    if (added) await bumpStats(ctx, { profiled: added });
     for (const id of jobIds) await ctx.db.patch(id, { status: "done" });
     return added;
   },
@@ -194,8 +195,10 @@ export const putDaily = mutation({
   args: { secret: v.string(), ...dailyArgs, ladder },
   handler: async (ctx, { secret, id, ...d }) => {
     checkWorker(secret);
-    if (!(await ctx.db.query("dailies").withIndex("by_date", (q) => q.eq("date", d.date)).unique()))
+    if (!(await ctx.db.query("dailies").withIndex("by_date", (q) => q.eq("date", d.date)).unique())) {
       await ctx.db.insert("dailies", { ...d, key: neuronKey(d.layer, d.n) });
+      await ctx.db.insert("tallies", { date: d.date, difficulty: d.difficulty, players: 0, solvers: 0 });
+    }
     await ctx.db.patch(id, { status: "done" });
   },
 });
