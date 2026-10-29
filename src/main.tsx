@@ -28,6 +28,14 @@ const Notes = lazy(() => import("./pages/Notes").then((m) => ({ default: m.Notes
 const Lab = lazy(() => import("./pages/Lab").then((m) => ({ default: m.Lab })));
 const About = lazy(() => import("./pages/About").then((m) => ({ default: m.About })));
 
+// The pages that aren't game modes, kept out of the nav.
+const FOOTER_LINKS = [
+  ["/trainers", "Leaderboard"],
+  ["/notes", "Notes"],
+  ["/how", "Rules"],
+  ["/about", "About"],
+] as const;
+
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
 // Send the landing page's queries as soon as the socket opens instead of after React mounts (~230 ms sooner on a fast
@@ -98,17 +106,21 @@ createRoot(document.getElementById("root")!).render(
                   </Routes>
                 </Suspense>
               </main>
-              <footer className="mx-auto flex max-w-[1120px] flex-wrap gap-x-6 gap-y-2 border-t border-line px-4 py-6 text-sm text-dim sm:px-6">
-                <span>
+              <footer className="mx-auto flex max-w-[1120px] flex-wrap items-baseline gap-x-6 gap-y-2 border-t border-line px-4 py-6 text-sm text-dim sm:px-6">
+                <nav className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs uppercase tracking-[0.12em]">
+                  {FOOTER_LINKS.map(([to, label]) => (
+                    <Link key={to} to={to} className="hover:text-fg">
+                      {label}
+                    </Link>
+                  ))}
+                </nav>
+                <span className="sm:ml-auto">
                   Built on{" "}
                   <a href="https://github.com/lyramakesmusic/neuron-explorer" className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
                     neuron-explorer
                   </a>{" "}
                   by lyramakesmusic
                 </span>
-                <Link to="/how" className="hover:text-fg">
-                  Rules and scoring
-                </Link>
               </footer>
               <Analytics />
             </NotesProvider>

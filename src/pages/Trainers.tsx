@@ -2,6 +2,7 @@ import { useQuery } from "convex/react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { Label, NeuronLink, RarityTag, ScrollX, Stat } from "../components/ui";
+import { useSession } from "../lib/session";
 
 export function Trainers() {
   const top = useQuery(api.players.leaderboard);
@@ -44,11 +45,19 @@ export function Trainers() {
 export function Trainer() {
   const { handle = "" } = useParams();
   const p = useQuery(api.players.profile, { handle });
+  const { me, signOut } = useSession();
   if (p === undefined) return <p className="py-20 text-center text-dim">Loading…</p>;
   if (p === null) return <p className="py-20 text-center text-dim">No player called {handle}.</p>;
   return (
     <div className="max-w-[920px]">
-      <h1 className="truncate text-4xl font-bold tracking-tight">{p.handle}</h1>
+      <div className="flex items-baseline justify-between gap-4">
+        <h1 className="min-w-0 truncate text-4xl font-bold tracking-tight">{p.handle}</h1>
+        {me?.handle === p.handle && (
+          <button onClick={signOut} className="shrink-0 font-mono text-[13px] text-dim hover:text-fg">
+            Sign out
+          </button>
+        )}
+      </div>
       <div className="mt-6 grid grid-cols-2 gap-5 border-y border-line py-5 sm:grid-cols-3 md:grid-cols-6">
         <Stat label="Points" value={p.points} />
         <Stat label="Caught" value={p.catches.length} />
