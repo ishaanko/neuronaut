@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
 import { useDeferredValue, useState } from "react";
 import { api } from "../../convex/_generated/api";
+import { MODEL } from "../../convex/rules";
 import { Input, Label } from "../ui/primitives";
 import { ChineseNote, NeuronLink, Tokens } from "./parts";
 
@@ -10,7 +11,10 @@ export function LensSearch({ onPick, pickLabel = "Use" }: { onPick?: (layer: num
   const [layer, setLayer] = useState("");
   const dq = useDeferredValue(q.trim());
   const dl = useDeferredValue(layer);
-  const results = useQuery(api.neurons.search, dq ? { q: dq, layer: dl === "" ? undefined : Number(dl) } : "skip");
+  // the backend refuses a layer past the last one, and a refused query would throw while rendering, so don't send it
+  const inLayer = dl === "" ? undefined : Number(dl);
+  const badLayer = inLayer !== undefined && inLayer >= MODEL.layers;
+  const results = useQuery(api.neurons.search, dq && !badLayer ? { q: dq, layer: inLayer } : "skip");
   return (
     <div>
       <Label className="mb-2">Find neurons by word</Label>
@@ -21,7 +25,9 @@ export function LensSearch({ onPick, pickLabel = "Use" }: { onPick?: (layer: num
       {!dq && <p className="mt-2 text-sm text-dim">Lists neurons whose push makes that word more likely. Add a layer to narrow it down.</p>}
       {dq && (
         <div className="mt-2 max-h-[380px] divide-y divide-line overflow-y-auto border-y border-line">
-          {results === undefined ? (
+          {badLayer ? (
+            <p className="py-3 text-sm text-dim">Layers go from 0 to {MODEL.layers - 1}.</p>
+          ) : results === undefined ? (
             <p className="py-3 text-sm text-dim">Searching…</p>
           ) : results.length === 0 ? (
             <p className="py-3 text-sm text-dim">No neuron's lens has that. Try a simpler word.</p>
