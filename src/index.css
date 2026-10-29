@@ -172,6 +172,21 @@
   }
 }
 
+/* the homepage specimen: what a push wrote over the reply fades in a beat after the rest, once (delays set inline) */
+.infect {
+  animation: infect 360ms var(--ease-out) both;
+}
+@keyframes infect {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .infect {
+    animation: none;
+  }
+}
+
 /* rare wins: a solved daily, a catch */
 .pop {
   animation: pop 420ms var(--ease-out) both;

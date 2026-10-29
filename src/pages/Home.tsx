@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { LIMITS, MODEL, bountyState } from "../../convex/rules";
 import { HowToPlay } from "../components/HowToPlay";
-import { Reply } from "../components/Replies";
+import { Specimen } from "../components/Specimen";
 import { Label, NeuronLink, RarityTag } from "../components/ui";
 import { ago, until } from "../lib/format";
 import { useNow } from "../lib/now";
@@ -44,7 +44,7 @@ export function Home() {
 
   return (
     <div className="space-y-12 lg:space-y-16">
-      <section className="grid grid-cols-[minmax(0,1fr)] gap-10 pt-2 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16 lg:pt-8">
+      <section className="grid grid-cols-[minmax(0,1fr)] gap-10 pt-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-x-16 lg:pt-8">
         <div>
           <h1 className="text-[2.6rem] font-bold leading-[1.02] tracking-tight sm:text-6xl">
             Find the neuron <span className="text-rust">behind the words.</span>
@@ -63,19 +63,21 @@ export function Home() {
           </div>
         </div>
 
-        {/* the hook: one of today's strange answers, word for word */}
+        {/* the hook: a destructive neuron eating a reply. Second on phones, beside the intro on wide screens */}
+        <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:border-line-strong lg:pl-12">
+          <Specimen />
+        </div>
+
+        {/* one of today's strange answers, word for word */}
         {daily && (
-          <figure className="self-start lg:border-l lg:border-line-strong lg:pl-10">
-            <figcaption className="flex items-baseline justify-between gap-4">
-              <Label>With today's neuron pushed</Label>
-              <Link to="/daily" className="shrink-0 font-mono text-xs hover:underline underline-offset-4">
-                Nº {daily.number}
-              </Link>
-            </figcaption>
-            <div className="mt-4 font-semibold">{daily.prompts[0]}</div>
-            <Reply text={daily.texts[0]} className="mt-2" />
-            <p className="mt-4 font-mono text-sm text-dim">{dailyStatus}</p>
-          </figure>
+          <Link to="/daily" className="group block self-start border-t border-line-strong pt-4 lg:col-start-1">
+            <div className="flex items-baseline justify-between gap-4">
+              <Label>Today's neuron, Nº {daily.number}</Label>
+              <span className="shrink-0 font-mono text-xs text-dim">{dailyStatus}</span>
+            </div>
+            <div className="mt-3 font-semibold">{daily.prompts[0]}</div>
+            <p className="mt-1 line-clamp-3 text-[15px] leading-relaxed text-dim group-hover:text-fg">{daily.texts[0].replace(/\*\*/g, "").replace(/\s+/g, " ")}</p>
+          </Link>
         )}
       </section>
 
