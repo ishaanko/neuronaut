@@ -17,8 +17,8 @@ ROOT=$PWD
 
 if [[ "${1:-}" == prod ]]; then
   UNIT=neuronaut-prod-worker
-  systemctl --user stop "$UNIT" 2>/dev/null || true
   if [[ "${2:-}" == stop ]]; then
+    systemctl --user stop "$UNIT" 2>/dev/null || true
     systemctl --user disable "$UNIT" 2>/dev/null || true
     exit 0
   fi
@@ -26,6 +26,7 @@ if [[ "${1:-}" == prod ]]; then
     echo "Without lingering the worker won't start after a reboot until you log in. Run: sudo loginctl enable-linger $USER" >&2
     exit 1
   fi
+  systemctl --user stop "$UNIT" 2>/dev/null || true
   mkdir -p logs ~/.config/systemd/user
   cat > ~/.config/systemd/user/$UNIT.service <<UNITFILE
 [Unit]

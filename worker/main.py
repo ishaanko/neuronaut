@@ -52,6 +52,7 @@ DIFFICULTY = ["easy", "easy", "medium", "medium", "hard", "hard", "hard"]  # Mon
 BANDS = {"easy": [(19, 25), (26, 30)], "medium": [(11, 18), (19, 25)], "hard": [(3, 10), (11, 18)]}
 LADDER_EVERY = 600  # sweep batches (~1.5 h) between refreshes of upcoming dailies' ladders
 GPU_KINDS = ["judge", "daily", "par", "combo"]  # the GPU loop's jobs; profile jobs go to the profile lane
+WAKE_S = 300  # an idle lane claims again this often, to pick up its jobs a restart left running (STALE_MS in worker.ts)
 HEARTBEAT_S = 60  # how often the worker checks in (worker:heartbeat), so a hanging guess can say the worker is down
 STORE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", f"sweep-{MODEL.replace('/', '--')}")
 
@@ -292,18 +293,19 @@ class Worker:
         return True
 
     def wait(self, kinds):
-        """Blocks until a job of `kinds` is pending. Uses the async iterator: the client's blocking one holds the GIL
-        while it waits, which freezes the worker's other threads."""
+        """Blocks until a job of `kinds` is pending, or WAKE_S passes. Uses the async iterator: the client's blocking one
+        holds the GIL while it waits, which freezes the worker's other threads."""
         async def first():
             sub = self.c.subscribe("worker:pending", {"secret": self.secret, "kinds": kinds})
-            try:
-                async for count in sub:
-                    if count:
-                        return
-            finally:
-                sub.unsubscribe()
+            async for count in sub:
+                if count:
+                    sub.unsubscribe()  # a timeout's cancellation drops the subscription itself
+                    return
 
-        asyncio.run(first())
+        try:
+            asyncio.run(asyncio.wait_for(first(), WAKE_S))
+        except TimeoutError:
+            pass
 
     def loop(self, sweep):
         state = None
