@@ -87,7 +87,7 @@ export const fail = mutation({
   handler: async (ctx, { secret, id, error }) => {
     checkWorker(secret);
     const job = await ctx.db.get(id);
-    if (!job) return;
+    if (!job || job.status === "done") return; // a second attempt at a job another attempt already finished
     await ctx.db.patch(id, { status: "failed", error: error.slice(0, 2000) });
     if (job.kind === "judge") {
       await ctx.db.patch(job.args.entryId as Id<"entries">, { status: "failed" });
@@ -159,7 +159,9 @@ export const finishJudge = mutation({
   },
   handler: async (ctx, { secret, id, entryId, ...result }) => {
     checkWorker(secret);
-    if (!(await ctx.db.get(id))) return; // admin:removePlayer deleted the job (and its row) while it ran
+    const job = await ctx.db.get(id);
+    if (!job) return; // admin:removePlayer deleted the job (and its row) while it ran
+    if (job.status === "done") return; // a job claimed again after STALE_MS: the first result stands, and its standing
     await ctx.db.patch(entryId, { status: "done", ...result });
     await ctx.db.patch(id, { status: "done" });
     await rankEntry(ctx, entryId);

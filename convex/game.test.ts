@@ -354,6 +354,41 @@ describe.each([false, true])("bounty settlement (standings table: %s)", (ranked)
     expect(best.pushes[0].n).toBe(3);
   });
 
+  test("a tie at the leaderboard's cutoff keeps the earlier entry, and a second callback can't change a judged entry", async () => {
+    const { t, player } = await setup();
+    await t.mutation(internal.bounties.ensure, {});
+    const b = (await t.run((ctx) => ctx.db.query("bounties").first()))!;
+    const ids: Record<string, Id<"players">> = {};
+    for (let i = 0; i < 51; i++) {
+      const who = `p${String(i).padStart(2, "0")}`;
+      await player(who);
+      ids[who] = (await t.run((ctx) => ctx.db.query("players").withIndex("by_handle", (q) => q.eq("handleLower", who)).unique()))!._id;
+    }
+    // 49 clear leaders, then p49 and p50 tie for 50th. p49's entry is earlier, but its standing row is older, and the
+    // index reads newer rows first among ties
+    await t.run(async (ctx) => {
+      const row = (who: string, score: number, at: number) =>
+        ctx.db.insert("entries", { bountyId: b._id, playerId: ids[who], pushes: [], status: "pending" }).then((entryId) =>
+          ctx.db.insert("standings", { bountyId: b._id, playerId: ids[who], entryId, handle: who, score, neurons: 1, at }));
+      await row("p49", 10, 1);
+      for (let i = 0; i < 49; i++) await row(`p${String(i).padStart(2, "0")}`, 100 + i, 0);
+      await row("p50", 10, 2);
+    });
+    const { leaderboard } = (await t.query(api.bounties.get, { slug: b.slug }))!;
+    expect(leaderboard).toHaveLength(50);
+    expect(leaderboard[49].handle).toBe("p49");
+
+    const ann = await player("ann");
+    await ann.mutation(api.bounties.submit, { slug: b.slug, pushes: [{ layer: 1, n: 1, dose: 0.5 }] });
+    const job = (await t.run((ctx) => ctx.db.query("jobs").collect())).find((j) => j.kind === "judge")!;
+    const judged = { secret: SECRET, id: job._id, entryId: job.args.entryId, concept: 0, coherence: 0, texts: [] };
+    await t.mutation(api.worker.finishJudge, { ...judged, score: 500 });
+    await t.mutation(api.worker.finishJudge, { ...judged, score: 5 });
+    await t.mutation(api.worker.fail, { secret: SECRET, id: job._id, error: "late" });
+    const entry = (await t.run((ctx) => ctx.db.get(job.args.entryId as Id<"entries">)))!;
+    expect([entry.status, entry.score]).toEqual(["done", 500]);
+  });
+
   test("a NaN or infinite dose is refused before it reaches the judge", async () => {
     const { t, player } = await setup();
     const ann = await player("ann");

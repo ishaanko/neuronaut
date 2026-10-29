@@ -47,7 +47,15 @@ async function ranking(ctx: QueryCtx, b: Doc<"bounties">, limit = Infinity): Pro
     return rows.sort(byRank).slice(0, limit);
   }
   const q = ctx.db.query("standings").withIndex("by_bounty_score", (q) => q.eq("bountyId", b._id)).order("desc");
-  return (limit === Infinity ? await q.collect() : await q.take(limit)).sort(byRank);
+  if (limit === Infinity) return (await q.collect()).sort(byRank);
+  const top = await q.take(limit);
+  // the index orders ties by row, not by entry time, so everyone tied with the last row is read before cutting
+  const last = top[limit - 1];
+  const tied = last
+    ? await ctx.db.query("standings").withIndex("by_bounty_score", (q) => q.eq("bountyId", b._id).eq("score", last.score)).collect()
+    : [];
+  const rows = new Map([...top, ...tied].map((r) => [r._id, r]));
+  return [...rows.values()].sort(byRank).slice(0, limit);
 }
 
 // After the worker judges an entry (worker.ts finishJudge): it becomes its player's standing if it beats their best.
@@ -198,11 +206,12 @@ export const settle = internalMutation({
   },
 });
 
-// Hourly: fills in the standings of bounties opened before the standings table, a few at a time, then marks them ranked.
+// Hourly: fills in the standings of bounties opened before the standings table, one per run, then marks it ranked.
+// Only bounties from before this table lack it, and those are small; every newer one is ranked from its first entry.
 export const rankOld = internalMutation({
   args: {},
   handler: async (ctx) => {
-    for (const b of (await ctx.db.query("bounties").collect()).filter((b) => !b.ranked).slice(0, 3)) {
+    for (const b of (await ctx.db.query("bounties").collect()).filter((b) => !b.ranked).slice(0, 1)) {
       for (const e of await bestEntries(ctx, b)) await rankEntry(ctx, e._id);
       await ctx.db.patch(b._id, { ranked: true });
     }
