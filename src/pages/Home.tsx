@@ -6,7 +6,7 @@ import { LIMITS, MODEL, bountyState } from "../../convex/rules";
 import { HowToPlay } from "../components/HowToPlay";
 import { Specimen } from "../components/Specimen";
 import { Label, NeuronLink, RarityTag } from "../components/ui";
-import { ago, until } from "../lib/format";
+import { ago, plainReply, until } from "../lib/format";
 import { useNow } from "../lib/now";
 import { useSession } from "../lib/session";
 
@@ -76,7 +76,7 @@ export function Home() {
               <span className="shrink-0 font-mono text-xs text-dim">{dailyStatus}</span>
             </div>
             <div className="mt-3 font-semibold">{daily.prompts[0]}</div>
-            <p className="mt-1 line-clamp-3 text-[15px] leading-relaxed text-dim group-hover:text-fg">{daily.texts[0].replace(/\*\*/g, "").replace(/\s+/g, " ")}</p>
+            <p className="mt-1 line-clamp-3 text-[15px] leading-relaxed text-dim group-hover:text-fg">{plainReply(daily.texts[0])}</p>
           </Link>
         )}
       </section>
