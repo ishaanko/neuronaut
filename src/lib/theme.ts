@@ -14,10 +14,10 @@ const listeners = new Set<() => void>();
 const current = (): Theme => (document.documentElement.dataset.theme === "dark" ? "dark" : "paper");
 
 export function setTheme(t: Theme) {
-  localStorage.setItem(THEME, t);
   document.documentElement.dataset.theme = t;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t === "dark" ? "#000" : PAPER_BG);
   listeners.forEach((l) => l());
+  localStorage.setItem(THEME, t); // last, so blocked storage only loses the save, not the switch
 }
 
 export const useTheme = () =>
