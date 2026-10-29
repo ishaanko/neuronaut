@@ -94,11 +94,11 @@ export function Tokens({ tokens, className = "" }: { tokens: string[]; className
   );
 }
 
-const CJK = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/;
+const HAN = /[\u3400-\u9fff]/; // Chinese characters
 
-// Shown under word lists that contain Chinese (or other CJK) tokens, which surprise players who expect English only.
+// Shown under word lists that contain Chinese tokens, which surprise players who expect English only.
 export function CjkNote({ tokens, className = "" }: { tokens: string[]; className?: string }) {
-  if (!tokens.some((t) => CJK.test(t))) return null;
+  if (!tokens.some((t) => HAN.test(t))) return null;
   return (
     <p className={`text-sm text-dim ${className}`}>
       Why Chinese? {MODEL.name} learned from a lot of Chinese text, and many neurons hold one idea in both languages, so
