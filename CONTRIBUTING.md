@@ -3,7 +3,7 @@
 This repository is source-available, not open source: see [LICENSE](LICENSE). By opening a PR or issue you grant the
 maintainer a license to use your contribution, as the LICENSE describes.
 
-Setup is in the [README](README.md#running-it). You can work on the client and backend without a GPU, but anything that
+Setup is in [docs/running.md](docs/running.md). You can work on the client and backend without a GPU, but anything that
 changes what the worker measures needs one to check.
 
 ## Before you start

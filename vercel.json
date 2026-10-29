@@ -9,7 +9,7 @@
       "destination": "/index.html"
     }
   ],
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude)README.md'",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude)README.md' ':(exclude)docs'",
   "headers": [
     {
       "source": "/(.*)",
