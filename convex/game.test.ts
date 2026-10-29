@@ -198,7 +198,7 @@ describe("daily settlement", () => {
     await alice.mutation(api.daily.guess, { layer: 5, n: 5 });
     await alice.mutation(api.daily.guess, { layer: 5, n: 5, date: "2026-10-26" }); // practice doesn't count
     expect(await t.query(api.daily.tally, { date: "2026-10-27" })).toEqual({ players: 2, solvers: 1 });
-    await t.mutation(internal.daily.ensure, {}); // gives the old puzzle its tally row, so the archive lists it
+    await t.mutation(internal.daily.countOld, {}); // gives the old puzzle its tally row, so the archive lists it
     const past = await alice.query(api.daily.archive, {});
     expect(past).toMatchObject([{ date: "2026-10-26", players: 0, solvers: 0, mine: { solved: true, practice: true } }]);
   });

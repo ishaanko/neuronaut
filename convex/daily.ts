@@ -278,13 +278,29 @@ export async function bumpTally(ctx: MutationCtx, daily: Pick<Doc<"dailies">, "d
   await ctx.db.patch(t._id, { players: t.players + by, solvers: t.solvers + (solved ? by : 0) });
 }
 
-// Hourly: queue puzzle generation for any of the next BUFFER_DAYS days that has none, and give every puzzle a tally
-// row (the archive lists those).
+// Hourly, apart from ensure so a slow count never holds up new puzzles: gives puzzles from before tallies existed
+// their tally row, a few per run. It checks the dates the archive can list, which costs a few tiny reads once done.
+export const countOld = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let left = 10;
+    for (let i = -60; i <= BUFFER_DAYS && left > 0; i++) {
+      const date = addDays(today(), i);
+      if (await ctx.db.query("tallies").withIndex("by_date", (q) => q.eq("date", date)).unique()) continue;
+      const d = await dailyFor(ctx, date);
+      if (d) {
+        await tallyFor(ctx, d);
+        left--;
+      }
+    }
+  },
+});
+
+// Hourly: queue puzzle generation for any of the next BUFFER_DAYS days that has none.
 export const ensure = internalMutation({
   args: {},
   handler: async (ctx) => {
     const recent = await ctx.db.query("dailies").withIndex("by_date").order("desc").take(400);
-    for (const d of recent) await tallyFor(ctx, d);
     const exclude = recent.map((d) => d.key);
     for (let i = 0; i < BUFFER_DAYS; i++) {
       const date = addDays(today(), i);
