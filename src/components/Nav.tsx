@@ -4,13 +4,14 @@ import { useSession } from "../lib/session";
 import { firstVisit, markSeen, setTheme, useTheme } from "../lib/theme";
 import { HowToPlay } from "./HowToPlay";
 
-// The game modes. Everything else (leaderboard, notes, about, rules) lives in the footer.
+// The game modes, then About. Everything else (leaderboard, notes, rules) lives in the footer.
 const LINKS = [
   ["/daily", "Daily"],
   ["/dex", "Dex"],
   ["/bounties", "Bounties"],
   ["/lab", "Lab"],
   ["/map", "Map"],
+  ["/about", "About"],
 ] as const;
 
 // The favicon's five squares in the site's ink, the middle one lit in rust: one neuron among many.

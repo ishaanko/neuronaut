@@ -33,7 +33,6 @@ const FOOTER_LINKS = [
   ["/trainers", "Leaderboard"],
   ["/notes", "Notes"],
   ["/how", "Rules"],
-  ["/about", "About"],
 ] as const;
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
