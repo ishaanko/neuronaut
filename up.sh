@@ -8,8 +8,8 @@
 #   ./up.sh prod stop    # stop and disable it
 #   systemctl --user status 'neuronaut-*'
 #
-# The production worker is a real unit file, enabled, so it comes back after a reboot or WSL shutdown (needs
-# `loginctl enable-linger`). It has its own name, so the dev commands never touch it. Both workers share the GPU: while
+# The production worker is a real unit file, enabled, so it comes back after a reboot or WSL shutdown (it refuses to
+# install without `loginctl enable-linger`). It has its own name, so the dev commands never touch it. Both workers share the GPU: while
 # the dev one runs, judging on prod is slower, but guesses come from the store and don't need the GPU.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -21,6 +21,10 @@ if [[ "${1:-}" == prod ]]; then
   if [[ "${2:-}" == stop ]]; then
     systemctl --user disable "$UNIT" 2>/dev/null || true
     exit 0
+  fi
+  if [[ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" != yes ]]; then
+    echo "Without lingering the worker won't start after a reboot until you log in. Run: sudo loginctl enable-linger $USER" >&2
+    exit 1
   fi
   mkdir -p logs ~/.config/systemd/user
   cat > ~/.config/systemd/user/$UNIT.service <<UNITFILE

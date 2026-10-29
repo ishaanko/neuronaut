@@ -48,8 +48,10 @@ export const claim = mutation({
   handler: async (ctx, { secret, max, kinds }) => {
     checkWorker(secret);
     const now = Date.now();
+    // only this lane's kinds: the other lane may still be working through a long batch it claimed
+    const mine = new Set(kinds ?? ALL_KINDS);
     for (const j of await ctx.db.query("jobs").withIndex("by_status_priority", (q) => q.eq("status", "running")).collect())
-      if ((j.startedAt ?? 0) < now - STALE_MS) await ctx.db.patch(j._id, { status: "pending" });
+      if (mine.has(j.kind) && (j.startedAt ?? 0) < now - STALE_MS) await ctx.db.patch(j._id, { status: "pending" });
     // Jobs someone is waiting on first, up to `max`, one tier per batch: players' (0) while any wait, then guests', so a
     // batch of guest profiles never holds up a player. With none waiting, one background job: a par search takes
     // minutes, so a player who asks meanwhile waits behind at most one.
