@@ -43,8 +43,10 @@ CI typechecks, lints and builds every PR. It can't run the GPU.
 - Commit titles and PR titles: `<type>(<scope>): <what changed>`, in plain words. For example
   `fix(daily): guesses no longer stall when a profile job fails`.
 - Match the code around you. Game numbers live in `convex/rules.ts`, so change them there.
-- UI: true black background, white text, dense and minimal. No decorative cards or pills, no em dashes in copy, and no
-  animations that repaint continuously.
+- UI: ink on paper by default, true black at night. Two text colors (`fg`, `dim`) and one line color, used only for
+  input edges. Group things with space, not boxes: no bordered containers, dividers, cards, pills or tags, no
+  translucent layers, no italics, no letter-spaced capitals, and no numbered sections or path-style breadcrumbs. No em
+  dashes in copy, and no animations that repaint continuously.
 - If an agent did the work, end the PR description with the model and harness.
 
 ## Labels

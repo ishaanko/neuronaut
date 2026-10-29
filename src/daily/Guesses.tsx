@@ -1,18 +1,17 @@
 import { useState, type ReactNode } from "react";
 import { LADDER_EXACT } from "../../convex/rules";
-import { BehaviorMap, type Dot } from "../map/BehaviorMap";
 import { dexNo } from "../neuron/format";
 import { NeuronLink } from "../neuron/parts";
 import { Label } from "../ui/primitives";
 import { HEAT_BG, heatBand, rankText } from "./heat";
-import type { Guess, Puzzle } from "./puzzle";
+import type { Guess } from "./puzzle";
 
-// A guess's heat as a filled bar (0-99, or a hit). The fill animates once, when the guess is scored.
+// A guess's heat as a bar as long as its heat (0-99, or full for a hit). It grows in once, when the guess is scored.
 function HeatBar({ heat, correct }: { heat: number | null; correct: boolean }) {
   const pct = correct ? 100 : heat === null ? 0 : Math.max(4, heat);
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-raised" aria-hidden>
-      {heat !== null && <div className={`heat-fill h-full rounded-full ${HEAT_BG[heatBand(heat, correct)]}`} style={{ width: `${pct}%` }} />}
+    <div className="h-2 w-full" aria-hidden>
+      {heat !== null && <div className={`heat-fill h-full ${HEAT_BG[heatBand(heat, correct)]}`} style={{ width: `${pct}%` }} />}
     </div>
   );
 }
@@ -35,26 +34,25 @@ export function GuessCells({ layer, n, heat, rank, correct, pending }: { layer: 
 // The player's guesses, hottest first. Each opens to its cosine to the answer and a link to its card.
 export function GuessList({ guesses, offline }: { guesses: Guess[]; offline: boolean }) {
   const [open, setOpen] = useState<string | null>(null);
-  const latest = [...guesses].sort((a, b) => b.at - a.at)[0];
   return (
     <div>
       <Label className="mb-2">Guesses, hottest first</Label>
-      <div className="divide-y divide-line border-y border-fg" aria-live="polite">
+      <div aria-live="polite">
         {guesses.map((g) => {
           const k = `${g.layer}:${g.n}`;
-          const pending = g.status === "pending" ? <span className="text-sm text-faint">{offline ? "worker offline, scores when it's back" : "measuring…"}</span> : undefined;
+          const pending = g.status === "pending" ? <span className="text-sm text-dim">{offline ? "worker offline, scores when it's back" : "measuring…"}</span> : undefined;
           return (
-            <div key={k} data-guess className={g === latest ? "bg-card" : ""}>
+            <div key={k} data-guess>
               <button
                 type="button"
                 onClick={() => setOpen(open === k ? null : k)}
                 aria-expanded={open === k}
-                className={`${GUESS_GRID} w-full px-2 py-2.5 text-left hover:bg-card`}
+                className={`${GUESS_GRID} w-full py-2 text-left`}
               >
                 <GuessCells {...g} pending={pending} />
               </button>
               {open === k && g.status === "done" && (
-                <div className="px-2 pb-3 text-sm text-dim">
+                <div className="pb-3 text-sm text-dim">
                   {g.correct ? (
                     "Its effect matches the answer's."
                   ) : (
@@ -70,25 +68,6 @@ export function GuessList({ guesses, offline }: { guesses: Guess[]; offline: boo
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// The player's guesses on the behavior map, colored by heat; the answer as a green ring once the puzzle is over.
-// Quiet guesses (no place) don't show.
-export function GuessMap({ d }: { d: Puzzle }) {
-  const dots: Dot[] = d.guesses.flatMap((g) =>
-    g.place ? [{ layer: g.layer, n: g.n, ...g.place, color: g.heat === null ? "--color-raised" : `--color-${heatBand(g.heat, g.correct)}`, label: g.heat === null ? "" : `heat ${g.heat}` }] : [],
-  );
-  const answer = d.result?.answer;
-  if (answer?.place) dots.push({ layer: answer.layer, n: answer.n, ...answer.place, color: "--color-good", ring: true, size: 7, label: "the answer" });
-  return (
-    <div>
-      <Label className="mb-2">Your guesses on the map</Label>
-      <div className="rounded-[3px] border border-line bg-card p-3">
-        <BehaviorMap dots={dots} labels={false} tint={false} />
-      </div>
-      <p className="mt-2 text-sm text-dim">Dots use the heat colors. Neurons that act alike sit close together, so hot guesses bunch up. The map squashes a lot, so trust heat over distance.</p>
     </div>
   );
 }

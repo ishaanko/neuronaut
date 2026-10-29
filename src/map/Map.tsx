@@ -22,8 +22,8 @@ export function MapPage() {
   const dots = useMemo<Dot[]>(() => {
     const seen = new Set((mine ?? []).map((m) => `${m.layer}:${m.n}`));
     return [
-      ...(caught ?? []).filter((c) => !seen.has(`${c.layer}:${c.n}`)).map((c) => ({ ...c, color: "--color-fg", ring: true, label: c.name })),
-      ...(mine ?? []).map((m) => ({ ...m, color: "--color-fg" })),
+      ...(caught ?? []).filter((c) => !seen.has(`${c.layer}:${c.n}`)).map((c) => ({ ...c, ring: true, label: c.name })),
+      ...(mine ?? []),
     ];
   }, [mine, caught]);
 
@@ -56,11 +56,11 @@ export function MapPage() {
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="rounded-[3px] border border-line bg-card p-3 sm:p-4 lg:self-start">
+        <div className="lg:self-start">
           <BehaviorMap dots={dots} selected={cell} onCell={setCell} onDot={(d) => nav(`/n/${d.layer}/${d.n}`)} />
         </div>
         <aside className="space-y-6 lg:sticky lg:top-20 lg:self-start">
-          <div className="min-h-40 rounded-[3px] border border-line bg-card p-5">
+          <div className="min-h-40">
             {zone ? (
               <>
                 <Label>This spot</Label>

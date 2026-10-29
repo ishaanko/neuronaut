@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { MODEL } from "../../convex/rules";
 import { PLACED, QUIET_SHARE } from "../map/zones";
 import { Label, PageTitle } from "../ui/primitives";
+import { textLink } from "../ui/styles";
 
 // What a neuron is, why pushing one works, where this sits in interpretability, and who made it.
 // The numbers follow worker/engine.py and worker/places.py, like the field notes; keep them in sync.
@@ -35,7 +36,7 @@ const READING = [
   ["Steering Language Models With Activation Engineering", "Turner et al., 2023", "https://arxiv.org/abs/2308.10248"],
 ] as const;
 
-const link = "underline decoration-line-strong underline-offset-4 hover:decoration-fg";
+const link = textLink;
 
 export function About() {
   const neurons = (MODEL.layers * MODEL.width).toLocaleString();
@@ -134,9 +135,9 @@ export function About() {
 
       <section>
         <Label className="mb-3">Made by</Label>
-        <div className="divide-y divide-line border-y border-line">
+        <div className="space-y-2">
           {PEOPLE.map(({ name, links }) => (
-            <div key={name} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-3">
+            <div key={name} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
               <span className="font-semibold">{name}</span>
               <span className="flex flex-wrap gap-x-4 font-mono text-sm">
                 {links.map(([label, href]) => (

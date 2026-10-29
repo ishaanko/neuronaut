@@ -1,6 +1,5 @@
 import { BOUNTY_DAYS, HINTS, LIMITS, MODEL, POINTS, RARITIES, REPLY_TOKENS } from "../../convex/rules";
 import { RarityTag } from "../neuron/parts";
-import { Panel } from "../ui/Plate";
 import { Label, PageTitle } from "../ui/primitives";
 import { ExampleGame } from "./ExampleGame";
 
@@ -18,9 +17,7 @@ export function How() {
 
       <section id="example" className="scroll-mt-24">
         <Label className="mb-3">A real game, step by step</Label>
-        <Panel ascii="example" className="p-5 sm:p-6">
-          <ExampleGame />
-        </Panel>
+        <ExampleGame />
       </section>
 
       <section>

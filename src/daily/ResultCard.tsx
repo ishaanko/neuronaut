@@ -6,8 +6,7 @@ import { useSession } from "../players/session";
 import { useNow } from "../ui/now";
 import { Button, Stat } from "../ui/primitives";
 import { clock } from "../ui/time";
-import { HEAT_EMOJI, heatBand } from "./heat";
-import { HeatChart } from "./HeatChart";
+import { HEAT_BG, HEAT_EMOJI, heatBand } from "./heat";
 import type { Puzzle, Result } from "./puzzle";
 
 function shareText(d: Puzzle, r: Result) {
@@ -23,7 +22,8 @@ function untilNext(now: number) {
   return clock((next.getTime() - now) / 1000);
 }
 
-// A finished puzzle's card: how it went, the heat of each guess, and the text to share.
+// A finished puzzle's card: how it went, the heat of each guess, and the text to share. onClose: the card is leaving
+// (to sign up).
 export function ResultCard({ d, r, onClose }: { d: Puzzle; r: Result; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const now = useNow(true);
@@ -31,19 +31,22 @@ export function ResultCard({ d, r, onClose }: { d: Puzzle; r: Result; onClose: (
   const tally = useQuery(api.daily.tally, { date: d.date });
   return (
     <div>
-      <div className="font-mono text-xs uppercase tracking-[0.14em] text-dim">
-        {d.practice ? "Practice" : "Daily"} Nº {d.number}
-      </div>
-      <div className={`pop mt-1 text-4xl font-bold tracking-tight ${r.solved ? "text-rust" : "text-fg"}`}>{r.solved ? "Solved." : "Out of guesses."}</div>
-      <p className="mt-1 text-lg">
-        {r.solved ? `Solved in ${r.guesses} ${r.guesses === 1 ? "guess" : "guesses"}` : "The neuron got away."}
-        {r.seconds !== null && <span className="text-dim">, {clock(r.seconds)}</span>}
+      <h2 className="pop text-4xl font-bold">{r.solved ? "Solved" : "Out of guesses"}</h2>
+      <p className="mt-2 text-lg">
+        {d.practice ? "Practice" : "Daily"} #{d.number}
+        {r.solved && `, in ${r.guesses} ${r.guesses === 1 ? "guess" : "guesses"}`}
+        {r.seconds !== null && `, ${clock(r.seconds)}`}
       </p>
       <div className="mt-1 text-dim">
         It was <NeuronLink layer={r.answer.layer} n={r.answer.n} className="text-base text-fg" />
       </div>
-      <HeatChart className="mt-5" slots={d.limit} marks={r.heats.map((h, i) => ({ heat: h, correct: r.solved && i === r.heats.length - 1 }))} />
-      <div className="mt-4 grid grid-cols-3 gap-4 border-y border-fg py-4">
+      {/* the share grid: one square per guess, in its heat color */}
+      <div className="mt-6 flex flex-wrap gap-1" role="img" aria-label={`Heat of each guess: ${r.heats.join(", ")}`}>
+        {r.heats.map((h, i) => (
+          <span key={i} className={`h-5 w-5 ${HEAT_BG[heatBand(h, r.solved && i === r.heats.length - 1)]}`} />
+        ))}
+      </div>
+      <div className="mt-6 grid grid-cols-3 gap-4">
         <Stat label={d.practice ? "Solved that day" : "Solved today"} value={tally?.solvers ?? "-"} />
         <Stat label="Your streak" value={d.practice || !signedIn ? "-" : (me?.streak ?? 0)} />
         <Stat label="Next neuron" value={untilNext(now)} />
@@ -63,21 +66,16 @@ export function ResultCard({ d, r, onClose }: { d: Puzzle; r: Result; onClose: (
           </Button>
         </div>
       )}
-      <div className="mt-6 flex gap-2">
-        <Button
-          size="lg"
-          className="flex-1"
-          onClick={() => {
-            navigator.clipboard.writeText(shareText(d, r));
-            setCopied(true);
-          }}
-        >
-          {copied ? "Copied" : "Share"}
-        </Button>
-        <Button size="lg" variant="ghost" onClick={onClose}>
-          Close
-        </Button>
-      </div>
+      <Button
+        size="lg"
+        className="mt-6 w-full"
+        onClick={() => {
+          navigator.clipboard.writeText(shareText(d, r));
+          setCopied(true);
+        }}
+      >
+        {copied ? "Copied" : "Share"}
+      </Button>
     </div>
   );
 }

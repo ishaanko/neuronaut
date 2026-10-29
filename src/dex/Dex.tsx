@@ -3,12 +3,10 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { LIMITS, MODEL, RARITIES, isNeuron, type Rarity } from "../../convex/rules";
-import { CaughtMap } from "../map/CaughtMap";
 import { RARITY_COLOR } from "../neuron/format";
 import { LensSearch } from "../neuron/LensSearch";
 import { NeuronInput, NeuronLink, RarityTag, Tokens } from "../neuron/parts";
 import { useSession } from "../players/session";
-import { Panel } from "../ui/Plate";
 import { Button, ErrorLine, Label, PageTitle, ScrollX } from "../ui/primitives";
 import { ago } from "../ui/time";
 
@@ -45,7 +43,7 @@ export function Dex() {
       </div>
 
       <section className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-2">
-        <Panel ascii="dex" className="p-5">
+        <div>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -72,23 +70,19 @@ export function Dex() {
               </p>
             )}
           </form>
-        </Panel>
+        </div>
         <LensSearch pickLabel="Open" onPick={(l, nn) => nav(`/n/${l}/${nn}`)} />
       </section>
 
       <section>
-        <CaughtMap />
-      </section>
-
-      <section>
-        <div className="flex flex-wrap items-center gap-x-5 border-b border-line">
+        <div className="flex flex-wrap items-center gap-x-5">
           {(["caught", "seen"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`-mb-px whitespace-nowrap border-b-2 py-3 font-medium ${tab === t ? "border-fg text-fg" : "border-transparent text-dim hover:text-fg"}`}>
+            <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t} className={`whitespace-nowrap py-3 font-semibold ${tab === t ? "text-fg underline decoration-rust decoration-2 underline-offset-[6px]" : "text-dim hover:text-fg"}`}>
               {t === "caught" ? "Caught by everyone" : "Seen by you"}
             </button>
           ))}
           {tab === "caught" && (
-            <div className="flex w-full flex-wrap gap-x-3 gap-y-1 pb-2 font-mono text-xs md:ml-auto md:w-auto md:pb-0">
+            <div className="flex w-full flex-wrap gap-x-3 gap-y-1 pb-2 font-mono text-sm md:ml-auto md:w-auto md:pb-0">
               <button onClick={() => setRarity(undefined)} className={rarity ? "text-dim hover:text-fg" : "text-fg underline underline-offset-4"}>
                 all
               </button>
@@ -116,26 +110,26 @@ function Caught({ rarity }: { rarity?: Rarity }) {
         <table className="w-full text-left text-[15px]">
           <tbody>
             {results.map((c) => (
-              <tr key={`${c.layer}:${c.n}`} className="border-b border-line align-baseline">
-                <td className="w-24 py-3">
+              <tr key={`${c.layer}:${c.n}`} className="align-baseline">
+                <td className="w-24 py-1.5">
                   <NeuronLink layer={c.layer} n={c.n} />
                 </td>
-                <td className="py-3 font-medium">{c.name}</td>
-                <td className="w-28 py-3">
+                <td className="py-1.5 font-medium">{c.name}</td>
+                <td className="w-28 py-1.5">
                   <RarityTag rarity={c.rarity} />
                 </td>
-                <td className="hidden max-w-xs py-3 text-dim md:table-cell">
+                <td className="hidden max-w-xs py-1.5 text-dim md:table-cell">
                   <div className="max-w-xs truncate">
                     <Tokens tokens={c.words} />
                   </div>
                 </td>
-                <td className="hidden w-28 py-3 font-mono text-xs sm:table-cell">
+                <td className="hidden w-28 py-1.5 font-mono text-sm sm:table-cell">
                   <Link to={`/t/${c.handle}`} className="hover:underline underline-offset-4">
                     {c.handle}
                   </Link>
                 </td>
-                <td className="hidden w-12 py-3 text-right font-mono text-xs sm:table-cell">{c.points}</td>
-                <td className="w-10 py-3 text-right font-mono text-xs text-faint">{ago(c.at)}</td>
+                <td className="hidden w-12 py-1.5 text-right font-mono text-sm sm:table-cell">{c.points}</td>
+                <td className="w-10 py-1.5 text-right font-mono text-sm text-dim">{ago(c.at)}</td>
               </tr>
             ))}
           </tbody>
@@ -160,16 +154,16 @@ function Seen({ signedIn }: { signedIn: boolean }) {
       <table className="w-full text-left text-[15px]">
         <tbody>
           {seen.map((s) => (
-            <tr key={`${s.layer}:${s.n}`} className="border-b border-line align-baseline">
-              <td className="w-24 py-3">
+            <tr key={`${s.layer}:${s.n}`} className="align-baseline">
+              <td className="w-24 py-1.5">
                 <NeuronLink layer={s.layer} n={s.n} />
               </td>
-              <td className="w-28 py-3">{s.rarity ? <RarityTag rarity={s.rarity} /> : <span className="font-mono text-xs text-faint">measuring</span>}</td>
-              <td className="hidden py-3 text-dim sm:table-cell">
+              <td className="w-28 py-1.5">{s.rarity ? <RarityTag rarity={s.rarity} /> : <span className="font-mono text-sm text-dim">measuring</span>}</td>
+              <td className="hidden py-1.5 text-dim sm:table-cell">
                 <Tokens tokens={s.words} />
               </td>
-              <td className="w-20 py-3 font-mono text-xs text-dim">{s.source === "guess" ? "guessed" : "scanned"}</td>
-              <td className="w-16 py-3 text-right font-mono text-xs">
+              <td className="w-20 py-1.5 font-mono text-sm text-dim">{s.source === "guess" ? "guessed" : "scanned"}</td>
+              <td className="w-16 py-1.5 text-right font-mono text-sm">
                 {s.caughtBy === "you" ? <span className="text-good">yours</span> : s.caughtBy ? <span className="text-dim">taken</span> : ""}
               </td>
             </tr>

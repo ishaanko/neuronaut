@@ -3,7 +3,6 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { enqueue, GUEST_PRIORITY } from "./jobs";
 import { checkDate, dailyPlayer, guestArg, guestPlayer, playerFor, profileOf, queryToday } from "./lib";
-import { placeOf } from "./map";
 import { HINTS, LIMITS, addDays, cosine, dailyNumber, GPU, heat, ladderRank, neuronKey, SOLVE_COS, today, validNeuron } from "./rules";
 
 const BUFFER_DAYS = 7; // puzzles generated ahead, so a night the GPU is off doesn't skip a day
@@ -44,10 +43,6 @@ export const current = query({
       : null;
     const finished = !!result;
     const first = guesses.length ? Math.min(...guesses.map((g) => g._creationTime)) : undefined;
-    const at = async (layer: number, n: number) => {
-      const p = await placeOf(ctx, layer, n);
-      return p?.x !== undefined && p.y !== undefined ? { x: p.x, y: p.y } : null;
-    };
     return {
       date: d,
       number: dailyNumber(d),
@@ -62,21 +57,18 @@ export const current = query({
       hintsAt: HINTS,
       band: guesses.length >= HINTS.band || finished ? daily.band : null,
       hint: guesses.length >= HINTS.token || finished ? daily.hint : null,
-      guesses: (
-        await Promise.all(
-          guesses.map(async (g) => ({
-            layer: g.layer,
-            n: g.n,
-            status: g.status,
-            heat: g.heat ?? null,
-            rank: g.rank ?? null,
-            cos: g.cos ?? null,
-            correct: g.correct ?? false,
-            at: g._creationTime,
-            place: await at(g.layer, g.n), // guessed neurons are visited, so their place is disclosed
-          })),
-        )
-      ).sort((a, b) => (b.heat ?? -999) - (a.heat ?? -999)),
+      guesses: guesses
+        .map((g) => ({
+          layer: g.layer,
+          n: g.n,
+          status: g.status,
+          heat: g.heat ?? null,
+          rank: g.rank ?? null,
+          cos: g.cos ?? null,
+          correct: g.correct ?? false,
+          at: g._creationTime,
+        }))
+        .sort((a, b) => (b.heat ?? -999) - (a.heat ?? -999)),
       startedAt: player ? await startedAt(ctx, player._id, d, first) : null,
       // once finished: how it went, and the answer
       result: result
@@ -86,7 +78,7 @@ export const current = query({
             heats: result.heats,
             practice: !!result.practice,
             seconds: result.seconds ?? null,
-            answer: { layer: daily.layer, n: daily.n, place: await at(daily.layer, daily.n) },
+            answer: { layer: daily.layer, n: daily.n },
           }
         : null,
     };

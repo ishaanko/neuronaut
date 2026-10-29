@@ -1,28 +1,21 @@
 @import "tailwindcss";
 /* Latin only: the site has no other scripts, and the full packages pull in Cyrillic, Vietnamese and symbol subsets. */
 @import "@fontsource/source-serif-4/latin-400.css";
-@import "@fontsource/source-serif-4/latin-400-italic.css";
 @import "@fontsource/source-serif-4/latin-600.css";
 @import "@fontsource/source-serif-4/latin-700.css";
 @import "@fontsource/geist-mono/latin-400.css";
 @import "@fontsource/geist-mono/latin-500.css";
 
-/* A printed field plate: ink on paper, rust for emphasis. Text colors hold at least 4.5:1 on --bg and --card. */
+/* Ink on paper, rust for emphasis. Two text colors (fg, dim) and one line color; dim holds at least 4.5:1 on --bg, and
+   line at least 3:1, so input edges stay visible. Rarity and heat colors carry meaning, so they stay. */
 @theme static {
   --font-serif: "Source Serif 4", ui-serif, Georgia, serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
 
   --color-bg: #ece7dc;
-  --color-card: #f4f0e6;
-  --color-raised: #e2dccf;
   --color-fg: #1b1814;
   --color-dim: #4f4940;
-  --color-faint: #685f53;
-  --color-line: #cbc3b4;
-  --color-line-strong: #9d9585;
-  --color-accent: #1b1814;
-  --color-accent-fg: #f4f0e6;
-  --color-accent-hover: #3a342c;
+  --color-line: #857d6e;
   --color-rust: #a6481f;
 
   --color-legendary: #9a6b07;
@@ -42,19 +35,12 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* The same plate at night: true black, cream ink, a lighter rust. Same contrast floor as the paper theme. */
+/* The same at night: true black, cream ink, a lighter rust. Same contrast floors as the paper theme. */
 [data-theme="dark"] {
   --color-bg: #000;
-  --color-card: #0f0e0c;
-  --color-raised: #1d1b17;
   --color-fg: #f2ede3;
   --color-dim: #b5ad9f;
-  --color-faint: #908879;
-  --color-line: #2e2b26;
-  --color-line-strong: #4d483f;
-  --color-accent: #f2ede3;
-  --color-accent-fg: #000;
-  --color-accent-hover: #d6cfc2;
+  --color-line: #6e685e;
   --color-rust: #e2804f;
 
   --color-legendary: #e0b13f;
@@ -109,23 +95,6 @@
     outline: 2px solid var(--color-fg);
     outline-offset: 2px;
   }
-}
-
-/* A static field of ASCII characters behind a panel's content (ui/Plate.tsx Ascii). It fades out toward the
-   bottom left so text laid over it stays readable. */
-.ascii {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  overflow: hidden;
-  pointer-events: none;
-  user-select: none;
-  white-space: pre;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 13px;
-  color: color-mix(in srgb, var(--color-fg) 13%, transparent);
-  mask-image: linear-gradient(to bottom left, #000 0%, rgb(0 0 0 / 0.45) 40%, transparent 75%);
 }
 
 /* ---------- motion ----------
@@ -202,7 +171,7 @@
   }
 }
 
-/* modals and their backdrop enter from just below full size, never from nothing */
+/* a modal's sheet fades in, and its content rises a few pixels */
 .modal-backdrop {
   transition: opacity 200ms var(--ease-out);
   @starting-style {
@@ -210,12 +179,9 @@
   }
 }
 .modal-panel {
-  transition:
-    opacity 200ms var(--ease-out),
-    transform 200ms var(--ease-out);
+  transition: transform 200ms var(--ease-out);
   @starting-style {
-    opacity: 0;
-    transform: scale(0.97) translateY(8px);
+    transform: translateY(8px);
   }
 }
 
@@ -230,20 +196,13 @@
   }
 }
 
-/* the share grid on the result card fills in one square at a time */
-.stagger > * {
-  animation: pop 300ms var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 45ms);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .press:active:not(:disabled) {
     transform: none;
   }
   .heat-fill,
   .shake,
-  .pop,
-  .stagger > * {
+  .pop {
     animation: fade 200ms ease both;
   }
   .modal-panel,

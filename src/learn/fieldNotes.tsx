@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { Link } from "react-router-dom";
 import { MODEL } from "../../convex/rules";
 import { PLACED, QUIET_SHARE } from "../map/zones";
-import { buttonClass } from "../ui/styles";
 
 const ALL = (MODEL.layers * MODEL.width).toLocaleString();
 const QUIET = `${Math.round(QUIET_SHARE * 100)}%`;
@@ -139,16 +138,14 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={{ seen, unlock }}>
       {children}
       {note && (
-        <div role="status" className="note-in fixed inset-x-4 bottom-4 z-50 rounded-[3px] border border-fg bg-card p-4 sm:left-auto sm:w-96">
-          <div className="text-sm text-dim">New field note</div>
+        <div role="status" className="note-in fixed inset-x-4 bottom-4 z-50 bg-fg p-4 text-bg sm:left-auto sm:w-96">
+          <div className="text-sm">New field note</div>
           <div className="mt-1 text-lg font-semibold">{note.title}</div>
-          <div className="mt-3 flex gap-2">
-            <Link to={`/notes#${note.id}`} onClick={() => setFresh(null)} className={buttonClass()}>
+          <div className="mt-3 flex items-center gap-5 font-mono text-sm">
+            <Link to={`/notes#${note.id}`} onClick={() => setFresh(null)} className="underline underline-offset-4">
               Read it
             </Link>
-            <button onClick={() => setFresh(null)} className="press h-10 rounded-[3px] px-3 text-sm text-dim hover:text-fg">
-              Later
-            </button>
+            <button onClick={() => setFresh(null)}>Later</button>
           </div>
         </div>
       )}

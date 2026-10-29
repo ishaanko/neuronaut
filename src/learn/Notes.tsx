@@ -18,14 +18,14 @@ export function Notes() {
           {seen.length} of {NOTES.length} found. Each one unlocks the first time you see it happen in the game.
         </p>
       </div>
-      <div className="divide-y divide-line border-y border-line">
+      <div className="space-y-10">
         {NOTES.map((note) => {
           const open = seen.includes(note.id);
           return (
             <article
               key={note.id}
               id={note.id}
-              className="scroll-mt-24 py-6"
+              className="scroll-mt-24"
             >
               <h2 className={`text-xl font-semibold ${open ? "" : "text-dim"}`}>{open ? note.title : "Not found yet"}</h2>
               {open ? (
