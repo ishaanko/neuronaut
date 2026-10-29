@@ -46,23 +46,15 @@ async function ranking(ctx: QueryCtx, b: Doc<"bounties">, limit = Infinity): Pro
     const rows = best.map((e) => ({ playerId: e.playerId, entryId: e._id, score: e.score ?? 0, neurons: e.pushes.length, at: e._creationTime }));
     return rows.sort(byRank).slice(0, limit);
   }
-  const q = ctx.db.query("standings").withIndex("by_bounty_score", (q) => q.eq("bountyId", b._id)).order("desc");
-  if (limit === Infinity) return (await q.collect()).sort(byRank);
-  const top = await q.take(limit);
-  // the index orders ties by row, not by entry time, so everyone tied with the last row is read before cutting
-  const last = top[limit - 1];
-  const tied = last
-    ? await ctx.db.query("standings").withIndex("by_bounty_score", (q) => q.eq("bountyId", b._id).eq("score", last.score)).collect()
-    : [];
-  const rows = new Map([...top, ...tied].map((r) => [r._id, r]));
-  return [...rows.values()].sort(byRank).slice(0, limit);
+  const q = ctx.db.query("standings").withIndex("by_bounty_rank", (q) => q.eq("bountyId", b._id)).order("desc");
+  return limit === Infinity ? await q.collect() : await q.take(limit);
 }
 
 // After the worker judges an entry (worker.ts finishJudge): it becomes its player's standing if it beats their best.
 export async function rankEntry(ctx: MutationCtx, entryId: Id<"entries">) {
   const e = await ctx.db.get(entryId);
   if (!e || e.status !== "done" || e.score === undefined || !Number.isFinite(e.score)) return;
-  const rank = { entryId, score: e.score, neurons: e.pushes.length, at: e._creationTime };
+  const rank = { entryId, score: e.score, neurons: e.pushes.length, at: e._creationTime, negAt: -e._creationTime };
   const row = await ctx.db
     .query("standings")
     .withIndex("by_bounty_player", (q) => q.eq("bountyId", e.bountyId).eq("playerId", e.playerId))

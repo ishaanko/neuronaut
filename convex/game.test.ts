@@ -364,12 +364,12 @@ describe.each([false, true])("bounty settlement (standings table: %s)", (ranked)
       await player(who);
       ids[who] = (await t.run((ctx) => ctx.db.query("players").withIndex("by_handle", (q) => q.eq("handleLower", who)).unique()))!._id;
     }
-    // 49 clear leaders, then p49 and p50 tie for 50th. p49's entry is earlier, but its standing row is older, and the
-    // index reads newer rows first among ties
+    // 49 clear leaders, then p49 and p50 tie for 50th. p49's entry is earlier but its standing row is older: ordered
+    // by row, the tie would go to p50
     await t.run(async (ctx) => {
       const row = (who: string, score: number, at: number) =>
         ctx.db.insert("entries", { bountyId: b._id, playerId: ids[who], pushes: [], status: "pending" }).then((entryId) =>
-          ctx.db.insert("standings", { bountyId: b._id, playerId: ids[who], entryId, handle: who, score, neurons: 1, at }));
+          ctx.db.insert("standings", { bountyId: b._id, playerId: ids[who], entryId, handle: who, score, neurons: 1, at, negAt: -at }));
       await row("p49", 10, 1);
       for (let i = 0; i < 49; i++) await row(`p${String(i).padStart(2, "0")}`, 100 + i, 0);
       await row("p50", 10, 2);

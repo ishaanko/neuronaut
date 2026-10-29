@@ -255,7 +255,8 @@ export default defineSchema({
     score: v.number(),
     neurons: v.number(),
     at: v.number(),
+    negAt: v.number(), // -at, so reading by_bounty_rank descending puts the earlier entry first on a tie
   })
-    .index("by_bounty_score", ["bountyId", "score"])
+    .index("by_bounty_rank", ["bountyId", "score", "negAt"])
     .index("by_bounty_player", ["bountyId", "playerId"]),
 });
