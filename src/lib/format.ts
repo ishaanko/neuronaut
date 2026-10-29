@@ -63,3 +63,12 @@ export function clock(seconds: number) {
   const pad = (x: number) => String(x).padStart(2, "0");
   return h ? `${h}:${pad(m)}:${pad(r)}` : `${m}:${pad(r)}`;
 }
+
+// A reply as one plain line, for previews too small for Reply: heading, bullet and bold markers dropped.
+export function plainReply(text: string) {
+  return text
+    .split("\n")
+    .map((l) => l.replace(/^\s*#{1,6}\s+/, "").replace(/^\s*[-*]\s+/, "").replace(/\*\*/g, "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
