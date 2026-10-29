@@ -42,13 +42,44 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
+/* The same plate at night: true black, cream ink, a lighter rust. Same contrast floor as the paper theme. */
+[data-theme="dark"] {
+  --color-bg: #000;
+  --color-card: #0f0e0c;
+  --color-raised: #1d1b17;
+  --color-fg: #f2ede3;
+  --color-dim: #b5ad9f;
+  --color-faint: #908879;
+  --color-line: #2e2b26;
+  --color-line-strong: #4d483f;
+  --color-accent: #f2ede3;
+  --color-accent-fg: #000;
+  --color-accent-hover: #d6cfc2;
+  --color-rust: #e2804f;
+
+  --color-legendary: #e0b13f;
+  --color-epic: #ab8fe8;
+  --color-rare: #62abdb;
+  --color-uncommon: #6fc071;
+  --color-common: #908879;
+  --color-glitch: #e46a93;
+
+  --color-cold: #5f5a52;
+  --color-warm: #c9a23a;
+  --color-warmer: #e0843a;
+  --color-hot: #da4a33;
+  --color-good: #52a25d;
+
+  color-scheme: dark;
+}
+
 @layer base {
   html {
+    color-scheme: light;
     background: var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-serif);
     font-size: 17px;
-    color-scheme: light;
     -webkit-font-smoothing: antialiased;
   }
 

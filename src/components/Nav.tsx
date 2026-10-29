@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useSession } from "../lib/session";
-import { firstVisit, markSeen } from "../lib/theme";
+import { firstVisit, markSeen, setTheme, useTheme } from "../lib/theme";
 import { HowToPlay } from "./HowToPlay";
 
 const LINKS = [
@@ -18,6 +18,7 @@ const LINKS = [
 export function Nav() {
   const { me, signedIn, signIn, signOut, requireJoin } = useSession();
   const [help, setHelp] = useState(firstVisit);
+  const theme = useTheme();
   const closeHelp = () => {
     markSeen();
     setHelp(false);
@@ -45,6 +46,9 @@ export function Nav() {
           <button onClick={() => setHelp(true)} aria-label="How to play" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-fg text-dim hover:text-fg sm:h-auto sm:w-auto sm:border-0">
             <span aria-hidden className="sm:hidden">?</span>
             <span className="hidden sm:inline">How to play</span>
+          </button>
+          <button onClick={() => setTheme(theme === "dark" ? "paper" : "dark")} className="shrink-0 text-dim hover:text-fg">
+            {theme === "dark" ? "Paper" : "Dark"}
           </button>
           {me ? (
             <>

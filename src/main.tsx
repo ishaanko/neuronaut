@@ -11,6 +11,7 @@ import { Nav } from "./components/Nav";
 import { NotesProvider } from "./lib/notes";
 import { guestToken } from "./lib/guest";
 import { SessionProvider } from "./lib/session";
+import { useTheme } from "./lib/theme";
 import { Daily } from "./pages/Daily";
 import { Home } from "./pages/Home";
 
@@ -42,16 +43,21 @@ for (const query of PREWARM[location.pathname as keyof typeof PREWARM] ?? [])
 if (location.pathname === "/" || location.pathname === "/daily")
   convex.prewarmQuery({ query: api.daily.current, args: { guest: guestToken() }, extendSubscriptionFor: 10_000 });
 
-// Clerk's sign-in modal in the site's colors.
+// Clerk's sign-in modal in the site's colors. It can't read the CSS variables, so it gets each theme's values.
+const CLERK_COLORS = {
+  paper: { card: "#f4f0e6", bg: "#ece7dc", ink: "#1b1814" },
+  dark: { card: "#0f0e0c", bg: "#000", ink: "#f2ede3" },
+};
 function Clerk({ children }: { children: ReactNode }) {
+  const c = CLERK_COLORS[useTheme()];
   const appearance = {
     variables: {
-      colorBackground: "#f4f0e6",
-      colorText: "#1b1814",
-      colorPrimary: "#1b1814",
-      colorTextOnPrimaryBackground: "#f4f0e6",
-      colorInputBackground: "#ece7dc",
-      colorInputText: "#1b1814",
+      colorBackground: c.card,
+      colorText: c.ink,
+      colorPrimary: c.ink,
+      colorTextOnPrimaryBackground: c.card,
+      colorInputBackground: c.bg,
+      colorInputText: c.ink,
       fontFamily: '"Source Serif 4", Georgia, serif',
       borderRadius: "3px",
     },
