@@ -6,14 +6,15 @@ const W = 420;
 const [TOP, BASE] = [12, 104]; // y of heat 99 and of heat 0, the baseline
 const [LEFT, RIGHT] = [26, 10];
 
-// A guess's marker, by heat band (same bands as the heat bar): cold ○, warm ×, warmer □, hot ●, and the hit in rust.
+// A guess's marker, filled with its heat color (the heat bar's colors) and shaped by band so it reads without color too:
+// cold ○, warm ▲, warmer ■, hot ●, and the hit as a larger green dot.
 function Marker({ x, y, m }: { x: number; y: number; m: ChartMark }) {
   const band = heatBg(m.heat, m.correct);
-  if (band === "bg-good") return <circle cx={x} cy={y} r={6} className="fill-rust" />;
-  if (band === "bg-hot") return <circle cx={x} cy={y} r={4.5} className="fill-fg" />;
-  if (band === "bg-warmer") return <rect x={x - 4} y={y - 4} width={8} height={8} className="fill-bg stroke-fg" strokeWidth={1.6} />;
-  if (band === "bg-warm") return <path d={`M${x - 4} ${y - 4}l8 8m0-8l-8 8`} className="stroke-fg" strokeWidth={2} />;
-  return <circle cx={x} cy={y} r={4} className="fill-bg stroke-fg" strokeWidth={1.6} />;
+  if (band === "bg-good") return <circle cx={x} cy={y} r={6.5} className="fill-good stroke-fg" strokeWidth={1.2} />;
+  if (band === "bg-hot") return <circle cx={x} cy={y} r={5.5} className="fill-hot stroke-fg" strokeWidth={1.2} />;
+  if (band === "bg-warmer") return <rect x={x - 4.5} y={y - 4.5} width={9} height={9} className="fill-warmer stroke-fg" strokeWidth={1.2} />;
+  if (band === "bg-warm") return <path d={`M${x} ${y - 5.5}l5.5 9.5h-11z`} className="fill-warm stroke-fg" strokeWidth={1.2} />;
+  return <circle cx={x} cy={y} r={4.5} className="fill-cold stroke-fg" strokeWidth={1.2} />;
 }
 
 // A smooth line through the points (Catmull-Rom as cubic Béziers).

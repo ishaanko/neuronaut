@@ -35,6 +35,7 @@ export function BehaviorMap({
   selected,
   onDot,
   labels = true,
+  tint = true,
   className = "",
 }: {
   dots: Dot[];
@@ -42,6 +43,7 @@ export function BehaviorMap({
   selected?: number | null;
   onDot?: (d: Dot) => void;
   labels?: boolean;
+  tint?: boolean; // false draws every zone in one grey, so the dots' colors are the only ones that mean something
   className?: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -65,19 +67,19 @@ export function BehaviorMap({
     const g = c.getContext("2d")!;
     g.scale(dpr, dpr);
     g.clearRect(0, 0, size, size);
+    const css = getComputedStyle(document.documentElement);
+    const paint = (c: string) => (c.startsWith("--") ? css.getPropertyValue(c).trim() : c);
     const s = size / G;
     for (let i = 0; i < G * G; i++) {
       const z = zoneAt(i);
       if (!z) continue;
       g.globalAlpha = i === selected ? 0.75 : 0.32;
-      g.fillStyle = zoneTint(z.id);
+      g.fillStyle = tint ? zoneTint(z.id) : paint("--color-line-strong");
       // whole-pixel edges, so neighbouring squares meet without overlapping (overlaps show as darker seams)
       const [x0, y0] = [Math.round((i % G) * s), Math.round(Math.floor(i / G) * s)];
       g.fillRect(x0, y0, Math.round((i % G + 1) * s) - x0, Math.round((Math.floor(i / G) + 1) * s) - y0);
     }
     g.globalAlpha = 1;
-    const css = getComputedStyle(document.documentElement);
-    const paint = (c: string) => (c.startsWith("--") ? css.getPropertyValue(c).trim() : c);
     for (const d of dots) {
       const r = d.size ?? 3.5;
       g.beginPath();
@@ -91,7 +93,7 @@ export function BehaviorMap({
         g.fill();
       }
     }
-  }, [dots, size, selected]);
+  }, [dots, size, selected, tint]);
 
   const nearest = (px: number, py: number) => {
     let best: Dot | null = null;

@@ -165,9 +165,9 @@ function GuessMap({ d }: { d: Daily }) {
     <div>
       <Label className="mb-2">Your guesses on the map</Label>
       <div className="rounded-[3px] border border-line bg-card p-3">
-        <BehaviorMap dots={dots} labels={false} />
+        <BehaviorMap dots={dots} labels={false} tint={false} />
       </div>
-      <p className="mt-2 text-sm text-dim">Neurons that act alike sit close together, so hot guesses bunch up. The map squashes a lot, so trust heat over distance.</p>
+      <p className="mt-2 text-sm text-dim">Dots use the heat colors. Neurons that act alike sit close together, so hot guesses bunch up. The map squashes a lot, so trust heat over distance.</p>
     </div>
   );
 }
