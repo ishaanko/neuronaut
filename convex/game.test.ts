@@ -301,10 +301,13 @@ describe.each([false, true])("bounty settlement (standings table: %s)", (ranked)
     expect(await points()).toEqual({ early: PRIZES[0], late: PRIZES[1] }); // 500 doesn't beat par 500
   });
 
-  test("beating par adds the bonus", async () => {
-    const { t, points } = await bountyWith([{ who: "ann", score: 501 }], 500);
+  test("beating par adds the bonus to a top-three finish, and pays nothing below it", async () => {
+    const { t, points } = await bountyWith(
+      [{ who: "ann", score: 900 }, { who: "ben", score: 800 }, { who: "cat", score: 700 }, { who: "dan", score: 600 }],
+      500,
+    );
     await t.mutation(internal.bounties.settle, {});
-    expect(await points()).toEqual({ ann: PRIZES[0] + PAR_BONUS });
+    expect(await points()).toEqual({ ann: PRIZES[0] + PAR_BONUS, ben: PRIZES[1] + PAR_BONUS, cat: PRIZES[2] + PAR_BONUS, dan: 0 });
   });
 
   test("a NaN score can't win a prize", async () => {
