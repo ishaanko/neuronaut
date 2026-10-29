@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { LIMITS, NEW_PLAYER, guestArg, guestFor, playerFor, today, type Rarity } from "./lib";
+import { LIMITS, NEW_PLAYER, guestArg, guestFor, playerFor, queryToday, type Rarity } from "./lib";
 
 // A signed-in Clerk user picks a handle once; that makes them a player. With `guest`, the guest row they played on
 // becomes that player, keeping its guesses, results, points and streak.
@@ -28,7 +28,7 @@ export const me = query({
   handler: async (ctx) => {
     const p = await playerFor(ctx);
     if (!p) return null;
-    const date = today();
+    const date = await queryToday(ctx);
     const scans = await ctx.db
       .query("scans")
       .withIndex("by_player_date", (q) => q.eq("playerId", p._id).eq("date", date))

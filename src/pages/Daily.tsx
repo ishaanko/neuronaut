@@ -218,9 +218,10 @@ export function Daily() {
 
   // start the solve clock the first time a player or guest sees this puzzle
   const needsOpen = settled && (!!me || !signedIn) && !!d && !finished && d.startedAt === null;
+  const shown = d?.date;
   useEffect(() => {
-    if (needsOpen) openPuzzle({ ...(date ? { date } : {}), guest }).catch(() => {});
-  }, [needsOpen, date, guest, openPuzzle]);
+    if (needsOpen && shown) openPuzzle({ date: shown, guest }).catch(() => {});
+  }, [needsOpen, shown, guest, openPuzzle]);
 
   // open the result card once, the first time a player sees this puzzle finished
   useEffect(() => {
@@ -240,9 +241,11 @@ export function Daily() {
       setError(msg);
       setShaking(true);
     };
+    if (!d) return;
     if (layer === "" || n === "") return fail("Enter a layer and a neuron number");
     try {
-      await guess({ layer: Number(layer), n: Number(n), ...(date ? { date } : {}), guest });
+      // the puzzle on screen, not whatever the server's today is: a guess made just past midnight stays on its puzzle
+      await guess({ layer: Number(layer), n: Number(n), date: d.date, guest });
       setN("");
     } catch (e) {
       fail(errorText(e));

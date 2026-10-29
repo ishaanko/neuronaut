@@ -17,6 +17,7 @@ import {
   ladderRank,
   neuronKey,
   playerFor,
+  queryToday,
   SOLVE_COS,
   today,
   validNeuron,
@@ -45,7 +46,7 @@ export function dailyPoints(guesses: number) {
 export const current = query({
   args: { date: v.optional(v.string()), guest: guestArg },
   handler: async (ctx, { date, guest }) => {
-    const now = today();
+    const now = await queryToday(ctx);
     const d = date ?? now;
     if (d > now) return null; // puzzles are generated days ahead; their clues stay hidden until their date
     const daily = await dailyFor(ctx, d);
@@ -114,7 +115,8 @@ export const archive = query({
   args: { guest: guestArg },
   handler: async (ctx, { guest }) => {
     const player = await playerFor(ctx, guest);
-    const past = await ctx.db.query("tallies").withIndex("by_date", (q) => q.lt("date", today())).order("desc").take(60);
+    const now = await queryToday(ctx);
+    const past = await ctx.db.query("tallies").withIndex("by_date", (q) => q.lt("date", now)).order("desc").take(60);
     return await Promise.all(
       past.map(async (d) => {
         const mine = player
@@ -296,10 +298,21 @@ export const countOld = internalMutation({
   },
 });
 
+// At 00:00 UTC (and hourly, in case a run was missed): moves the clock row to the new date, so every open daily page,
+// archive and scan count turns over to the new day.
+async function rollClock(ctx: MutationCtx) {
+  const row = await ctx.db.query("clock").first();
+  if (!row) await ctx.db.insert("clock", { today: today() });
+  else if (row.today !== today()) await ctx.db.patch(row._id, { today: today() });
+}
+
+export const roll = internalMutation({ args: {}, handler: rollClock });
+
 // Hourly: queue puzzle generation for any of the next BUFFER_DAYS days that has none.
 export const ensure = internalMutation({
   args: {},
   handler: async (ctx) => {
+    await rollClock(ctx);
     const recent = await ctx.db.query("dailies").withIndex("by_date").order("desc").take(400);
     const exclude = recent.map((d) => d.key);
     for (let i = 0; i < BUFFER_DAYS; i++) {

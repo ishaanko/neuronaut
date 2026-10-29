@@ -4,7 +4,7 @@ import { mutation, query, type QueryCtx } from "./_generated/server";
 import { settleIfEnded } from "./bounties";
 import { refundPending, resolvePending } from "./daily";
 import { bumpStats, globalStats } from "./jobs";
-import { checkWorker, neuronKey, rarity, today } from "./lib";
+import { checkWorker, neuronKey, queryToday, rarity } from "./lib";
 import { jobKind, ladder, push } from "./schema";
 
 // The GPU worker's API (worker/main.py). Every call carries WORKER_SECRET.
@@ -208,7 +208,8 @@ export const upcomingDailies = query({
   args: { secret: v.string() },
   handler: async (ctx, { secret }) => {
     checkWorker(secret);
-    const ds = await ctx.db.query("dailies").withIndex("by_date", (q) => q.gte("date", today())).collect();
+    const now = await queryToday(ctx);
+    const ds = await ctx.db.query("dailies").withIndex("by_date", (q) => q.gte("date", now)).collect();
     return ds.map((d) => ({ id: d._id, layer: d.layer, n: d.n, embedding: d.embedding }));
   },
 });
