@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import zones from "../data/zones.json";
 import { dexNo } from "../lib/format";
+import { useTheme } from "../lib/theme";
 
 // The behavior map (worker/places.py writes src/data/zones.json): neurons laid out by what pushing them does. Zones are
 // tinted squares; dots are neurons this player may see. Drawn once per change, nothing animates.
@@ -50,6 +51,7 @@ export function BehaviorMap({
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(0);
   const [hover, setHover] = useState<Dot | null>(null);
+  const theme = useTheme(); // dots can be theme colors, read when drawing
 
   useEffect(() => {
     const el = box.current;
@@ -93,7 +95,7 @@ export function BehaviorMap({
         g.fill();
       }
     }
-  }, [dots, size, selected, tint]);
+  }, [dots, size, selected, tint, theme]);
 
   const nearest = (px: number, py: number) => {
     let best: Dot | null = null;

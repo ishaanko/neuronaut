@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Push one neuron and a language model starts talking about the sea. Every day one of Qwen3.5-4B's 294,912 neurons is hidden. Find it in 15 guesses." />
     <meta name="theme-color" content="#ece7dc" />
+    <script>
+      if (localStorage.getItem("neuronaut:theme") === "dark") {
+        document.documentElement.dataset.theme = "dark";
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", "#000");
+      }
+    </script>
     <title>Neuronaut</title>
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Neuronaut" />
