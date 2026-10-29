@@ -67,7 +67,9 @@ export const current = query({
     return {
       date: d,
       number: dailyNumber(d),
-      practice: d < now, // a past puzzle: playable, but it pays nothing
+      // a past puzzle: playable, but it pays nothing. Guesses the mutation filed as practice count too: for the seconds
+      // after midnight before the clock row moves, the page still shows yesterday's as today's
+      practice: d < now || guesses.some((g) => g.practice) || !!result?.practice,
       difficulty: daily.difficulty ?? null,
       prompts: daily.prompts,
       texts: daily.texts,
