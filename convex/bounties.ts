@@ -8,7 +8,7 @@ import { LIMITS, playerFor, requirePlayer, validNeuron } from "./lib";
 import { push } from "./schema";
 
 const OPEN = 3; // bounties open at once
-export const PRIZES = [50, 25, 10]; // points for the top three when a bounty closes; beating par adds PAR_BONUS
+export const PRIZES = [50, 25, 10]; // points for the top three when a bounty closes; a top-three finish that beat par adds PAR_BONUS
 export const PAR_BONUS = 10;
 export const DOSE = { min: 0.05, max: 1.0 };
 
@@ -186,10 +186,10 @@ export const settle = internalMutation({
     for (const b of closed.filter((b) => !b.settled)) {
       const judging = await ctx.db.query("entries").withIndex("by_bounty_status", (q) => q.eq("bountyId", b._id).eq("status", "pending")).first();
       if (judging) continue;
-      const top = await ranking(ctx, b);
+      // only the top three are paid (the rules say so): beating par below them earns nothing extra
+      const top = await ranking(ctx, b, PRIZES.length);
       for (const [i, r] of top.entries()) {
-        const bonus = (PRIZES[i] ?? 0) + (b.par && r.score > b.par.score ? PAR_BONUS : 0);
-        if (!bonus) continue;
+        const bonus = PRIZES[i] + (b.par && r.score > b.par.score ? PAR_BONUS : 0);
         const p = (await ctx.db.get(r.playerId))!;
         await ctx.db.patch(p._id, { points: p.points + bonus, bountyWins: p.bountyWins + (i === 0 ? 1 : 0) });
       }
