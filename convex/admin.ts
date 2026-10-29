@@ -45,8 +45,8 @@ export const running = internalQuery({
     (await ctx.db.query("jobs").withIndex("by_status_priority", (q) => q.eq("status", "running")).collect()).map((j) => j.kind),
 });
 
-// Deletes every player and what they did (scans, catches, guesses, results, entries, the puzzles' tallies), and
-// un-catches their neurons.
+// Deletes every player and what they did (scans, catches, guesses, results, entries, standings, the puzzles' tallies),
+// and un-catches their neurons.
 // For dev deployments and for moving to a new players schema; puzzles, bounties and measured neurons stay.
 export const resetPlayers = internalMutation({
   args: {},
@@ -56,7 +56,7 @@ export const resetPlayers = internalMutation({
       const p = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", c.key)).unique();
       if (p) await ctx.db.patch(p._id, { caught: false });
     }
-    for (const t of ["scans", "catches", "guesses", "results", "opens", "tallies", "entries", "players"] as const)
+    for (const t of ["scans", "catches", "guesses", "results", "opens", "tallies", "entries", "standings", "players"] as const)
       for (const d of await ctx.db.query(t).collect()) {
         await ctx.db.delete(d._id);
         n++;
@@ -95,6 +95,11 @@ export const removePlayer = internalMutation({
     for (const r of await ctx.db.query("results").withIndex("by_player_date", (q) => q.eq("playerId", p._id)).collect()) {
       const d = await ctx.db.query("dailies").withIndex("by_date", (q) => q.eq("date", r.date)).unique();
       if (d && !r.practice) await bumpTally(ctx, d, r.solved, -1);
+    }
+    // their places on bounty leaderboards
+    for (const e of await ctx.db.query("entries").withIndex("by_player_bounty", (q) => q.eq("playerId", p._id)).collect()) {
+      const row = await ctx.db.query("standings").withIndex("by_bounty_player", (q) => q.eq("bountyId", e.bountyId).eq("playerId", p._id)).unique();
+      if (row) await ctx.db.delete(row._id);
     }
     const rows = [
       ...(await ctx.db.query("scans").withIndex("by_player", (q) => q.eq("playerId", p._id)).collect()),

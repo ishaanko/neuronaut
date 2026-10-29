@@ -262,7 +262,9 @@ describe("daily settlement", () => {
   });
 });
 
-describe("bounty settlement", () => {
+// Each prize rule, on a bounty ranked from every entry (opened before the standings table) and from its standings
+// rows (rankOld builds them the same way finishJudge does).
+describe.each([false, true])("bounty settlement (standings table: %s)", (ranked) => {
   async function bountyWith(entries: { who: string; score: number; status?: "done" | "pending" }[], par?: number) {
     const { t, player } = await setup();
     const ids: Record<string, Id<"players">> = {};
@@ -278,6 +280,7 @@ describe("bounty settlement", () => {
       for (const e of entries)
         await ctx.db.insert("entries", { bountyId: b, playerId: ids[e.who], pushes: [], status: e.status ?? "done", score: e.score });
     });
+    if (ranked) await t.mutation(internal.bounties.rankOld, {});
     const points = async () =>
       Object.fromEntries(await t.run(async (ctx) => (await ctx.db.query("players").collect()).map((p) => [p.handle, p.points])));
     return { t, points };
@@ -327,6 +330,63 @@ describe("bounty settlement", () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect((await t.run((ctx) => ctx.db.get(b._id)))!.settled).toBe(true);
     expect((await ann.query(api.players.me, {}))!.points).toBe(PRIZES[0]);
+  });
+
+  test("each judged entry replaces its player's standing only if it scores higher", async () => {
+    const { t, player } = await setup();
+    await t.mutation(internal.bounties.ensure, {});
+    const b = (await t.run((ctx) => ctx.db.query("bounties").first()))!;
+    const judge = async (who: Awaited<ReturnType<typeof player>>, n: number, score: number) => {
+      await who.mutation(api.bounties.submit, { slug: b.slug, pushes: [{ layer: 1, n, dose: 0.5 }] });
+      const job = (await t.run((ctx) => ctx.db.query("jobs").collect())).find((j) => j.kind === "judge" && j.status === "pending")!;
+      await t.mutation(api.worker.finishJudge, { secret: SECRET, id: job._id, entryId: job.args.entryId, score, concept: 0, coherence: 0, texts: [] });
+    };
+    const [ann, ben] = [await player("ann"), await player("ben")];
+    await judge(ann, 1, 300);
+    await judge(ben, 2, 800);
+    await judge(ann, 3, 900);
+    await judge(ann, 4, 900); // ties her best: the earlier one stays
+    await judge(ann, 5, 100);
+    const { leaderboard } = (await ann.query(api.bounties.get, { slug: b.slug }))!;
+    expect(leaderboard.map((r) => [r.handle, r.score, r.you])).toEqual([["ann", 900, true], ["ben", 800, false]]);
+    const row = await t.run((ctx) => ctx.db.query("standings").collect());
+    const best = (await t.run((ctx) => ctx.db.get(row.find((r) => r.handle === "ann")!.entryId)))!;
+    expect(best.pushes[0].n).toBe(3);
+  });
+
+  test("a tie at the leaderboard's cutoff keeps the earlier entry, and a second callback can't change a judged entry", async () => {
+    const { t, player } = await setup();
+    await t.mutation(internal.bounties.ensure, {});
+    const b = (await t.run((ctx) => ctx.db.query("bounties").first()))!;
+    const ids: Record<string, Id<"players">> = {};
+    for (let i = 0; i < 51; i++) {
+      const who = `p${String(i).padStart(2, "0")}`;
+      await player(who);
+      ids[who] = (await t.run((ctx) => ctx.db.query("players").withIndex("by_handle", (q) => q.eq("handleLower", who)).unique()))!._id;
+    }
+    // 49 clear leaders, then p49 and p50 tie for 50th. p49's entry is earlier but its standing row is older: ordered
+    // by row, the tie would go to p50
+    await t.run(async (ctx) => {
+      const row = (who: string, score: number, at: number) =>
+        ctx.db.insert("entries", { bountyId: b._id, playerId: ids[who], pushes: [], status: "pending" }).then((entryId) =>
+          ctx.db.insert("standings", { bountyId: b._id, playerId: ids[who], entryId, handle: who, score, neurons: 1, at, negAt: -at }));
+      await row("p49", 10, 1);
+      for (let i = 0; i < 49; i++) await row(`p${String(i).padStart(2, "0")}`, 100 + i, 0);
+      await row("p50", 10, 2);
+    });
+    const { leaderboard } = (await t.query(api.bounties.get, { slug: b.slug }))!;
+    expect(leaderboard).toHaveLength(50);
+    expect(leaderboard[49].handle).toBe("p49");
+
+    const ann = await player("ann");
+    await ann.mutation(api.bounties.submit, { slug: b.slug, pushes: [{ layer: 1, n: 1, dose: 0.5 }] });
+    const job = (await t.run((ctx) => ctx.db.query("jobs").collect())).find((j) => j.kind === "judge")!;
+    const judged = { secret: SECRET, id: job._id, entryId: job.args.entryId, concept: 0, coherence: 0, texts: [] };
+    await t.mutation(api.worker.finishJudge, { ...judged, score: 500 });
+    await t.mutation(api.worker.finishJudge, { ...judged, score: 5 });
+    await t.mutation(api.worker.fail, { secret: SECRET, id: job._id, error: "late" });
+    const entry = (await t.run((ctx) => ctx.db.get(job.args.entryId as Id<"entries">)))!;
+    expect([entry.status, entry.score]).toEqual(["done", 500]);
   });
 
   test("a NaN or infinite dose is refused before it reaches the judge", async () => {
