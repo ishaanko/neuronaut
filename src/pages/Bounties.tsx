@@ -2,17 +2,19 @@ import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
-import { efficiency } from "../../convex/rules";
+import { bountyState, efficiency } from "../../convex/rules";
 import { LensSearch } from "../components/LensSearch";
 import { Button, ErrorLine, Input, Label, NeuronInput, NeuronLink, Panel, ScrollX } from "../components/ui";
 import { Reply } from "../components/Replies";
 import { until } from "../lib/format";
 import { useNotes } from "../lib/notes";
+import { useNow } from "../lib/now";
 import { errorText, useSession } from "../lib/session";
 
 export function Bounties() {
   const list = useQuery(api.bounties.list);
-  const groups = (["open", "upcoming", "closed"] as const).map((st) => [st, (list ?? []).filter((b) => b.state === st)] as const);
+  const now = useNow(true, 30_000);
+  const groups = (["open", "upcoming", "closed"] as const).map((st) => [st, (list ?? []).filter((b) => bountyState(b, now) === st)] as const);
   return (
     <div className="space-y-10">
       <div className="space-y-4">
@@ -58,6 +60,7 @@ export function Bounty() {
   const { slug = "" } = useParams();
   const { requireJoin } = useSession();
   const b = useQuery(api.bounties.get, { slug });
+  const now = useNow(true, 30_000);
   const submit = useMutation(api.bounties.submit);
   const { unlock } = useNotes();
   const [rows, setRows] = useState<Row[]>([{ layer: "", n: "", dose: "0.5" }]);
@@ -66,6 +69,7 @@ export function Bounty() {
 
   if (b === undefined) return <p className="py-20 text-center text-dim">Loading…</p>;
   if (b === null) return <p className="py-20 text-center text-dim">No such bounty.</p>;
+  const state = bountyState(b, now);
 
   const setRow = (i: number, patch: Partial<Row>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const go = async () => {
@@ -89,7 +93,7 @@ export function Bounty() {
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <h1 className="text-4xl font-bold tracking-tight">{b.title}</h1>
           <span className="ml-auto font-mono text-sm text-dim">
-            {b.state === "open" ? `${until(b.endsAt)} left` : b.state === "upcoming" ? `opens in ${until(b.startsAt)}` : "closed"}
+            {state === "open" ? `${until(b.endsAt)} left` : state === "upcoming" ? `opens in ${until(b.startsAt)}` : "closed"}
           </span>
         </div>
         <p className="mt-3 max-w-[60ch] text-lg">{b.brief}</p>
@@ -169,7 +173,7 @@ export function Bounty() {
               </table>
             </ScrollX>
           )}
-          {b.state !== "closed" && b.leaderboard.length > 0 && <p className="mt-2 text-sm text-dim">Everyone's neurons stay secret until the bounty closes.</p>}
+          {b.leaderboard[0]?.pushes === null && <p className="mt-2 text-sm text-dim">Everyone's neurons stay secret until the bounty closes.</p>}
         </div>
 
         {b.mine.length > 0 && (
@@ -213,7 +217,7 @@ export function Bounty() {
       </section>
 
       <aside className="space-y-8 lg:sticky lg:top-16 lg:self-start">
-        {b.state === "open" ? (
+        {state === "open" ? (
           <Panel ascii={b.slug} className="p-5">
           <form
             onSubmit={(e) => {
@@ -254,7 +258,7 @@ export function Bounty() {
           </form>
           </Panel>
         ) : (
-          <p className="text-dim">{b.state === "upcoming" ? "Not open yet." : "This bounty is closed."}</p>
+          <p className="text-dim">{state === "upcoming" ? "Not open yet." : "This bounty is closed."}</p>
         )}
         <div>
           <Label className="mb-2">Find neurons by word</Label>

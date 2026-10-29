@@ -139,6 +139,8 @@ test("bounty entries and judged replies stay private until the bounty closes; th
     expect(JSON.stringify(view)).not.toMatch(/alice judged reply|private judge/);
   }
   vi.setSystemTime(NOW + 2000);
+  expect((await t.query(api.bounties.get, { slug: "isolation" }))!.leaderboard[0].pushes).toBeNull(); // ended, not settled yet
+  await t.mutation(internal.bounties.settle, {}); // what the run scheduled for its end does
   const closed = (await t.query(api.bounties.get, { slug: "isolation" }))!;
   expect(closed.leaderboard[0]).toMatchObject({ pushes, texts: ["alice judged reply"] });
   expect(JSON.stringify(closed)).not.toContain("private judge");

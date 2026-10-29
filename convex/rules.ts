@@ -88,6 +88,12 @@ export function heat(rank: number, total: number): number {
   return Math.max(0, Math.min(99, Math.round(100 * (1 - Math.log(rank) / Math.log(total)))));
 }
 
+// Whether a bounty is upcoming, open or closed at `now`. Clients work this out on their own clock: a query that read the
+// time would keep showing a bounty as upcoming after it opened (Convex doesn't rerun queries as time passes).
+export function bountyState(b: { startsAt: number; endsAt: number }, now: number) {
+  return now < b.startsAt ? "upcoming" : now < b.endsAt ? "open" : "closed";
+}
+
 // A bounty entry's efficiency: free up to a total dose of 0.5, then 25% off per unit, never below 40%. The worker's
 // judge() in worker/engine.py applies it to the score; this copy only explains the score on the page, so keep them equal.
 export function efficiency(pushes: { dose: number }[]) {
