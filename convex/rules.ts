@@ -8,6 +8,10 @@ export const LIMITS = { scans: 12, catches: 3, guesses: 15, entries: 8, experime
 // tokens, so guests can crowd out other guests but never players with accounts. `waiters`: guesses that may wait on one
 // unmeasured neuron before guests' are refused, so the worker can score them all in one mutation.
 export const GPU = { perPlayer: 4, queue: 200, guests: 50, waiters: 100 };
+// New guests across everyone, per minute. A guest is one browser token and anyone can mint tokens, so without a cap a
+// script could fill the database with guest rows. Past it, new visitors are asked to wait or sign in; accounts and
+// guests who already played are unaffected.
+export const NEW_GUESTS_PER_MINUTE = 120;
 export const HINTS = { band: 5, token: 10 }; // daily hints unlock after this many guesses
 export const SOLVE_COS = 0.97; // a guess this similar to the answer counts as solving it
 export const LAUNCH = "2026-10-27";

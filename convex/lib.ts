@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { NEW_GUESTS_PER_MINUTE } from "./rules";
 
 export * from "./rules";
 
@@ -34,11 +35,23 @@ export async function requirePlayer(ctx: QueryCtx) {
 
 export const NEW_PLAYER = { points: 0, caught: 0, dailySolved: 0, streak: 0, bestStreak: 0, bountyWins: 0 };
 
+// Counts a new guest against this minute's NEW_GUESTS_PER_MINUTE, or refuses it.
+async function admitGuest(ctx: MutationCtx) {
+  const minute = Math.floor(Date.now() / 60_000);
+  const row = await ctx.db.query("guestMints").first();
+  if (!row) await ctx.db.insert("guestMints", { minute, count: 1 });
+  else if (row.minute !== minute) await ctx.db.patch(row._id, { minute, count: 1 });
+  else if (row.count >= NEW_GUESTS_PER_MINUTE)
+    throw new ConvexError("Lots of new players right now. Try again in a minute, or sign in to play.");
+  else await ctx.db.patch(row._id, { count: row.count + 1 });
+}
+
 // The guest row for a token, made on first use.
 export async function guestPlayer(ctx: MutationCtx, guest: string) {
   if (!GUEST.test(guest)) throw new ConvexError("Bad guest token");
   const found = await guestFor(ctx, guest);
   if (found) return found;
+  await admitGuest(ctx);
   const userId = `guest|${guest}`;
   const id = await ctx.db.insert("players", { handle: "guest", handleLower: userId, userId, guest: true, ...NEW_PLAYER });
   return (await ctx.db.get(id))!;

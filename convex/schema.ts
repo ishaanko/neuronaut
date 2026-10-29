@@ -131,6 +131,9 @@ export default defineSchema({
     .index("by_by_status", ["by", "status"])
     .index("by_key", ["key"]),
 
+  // One row: how many guest rows were made this minute (lib.ts guestPlayer, rules.ts NEW_GUESTS_PER_MINUTE).
+  guestMints: defineTable({ minute: v.number(), count: v.number() }),
+
   // One row: when the worker last checked in (worker.ts heartbeat), so a guess that hangs can say the worker is down.
   heartbeats: defineTable({ at: v.number() }),
 
