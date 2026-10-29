@@ -20,6 +20,7 @@ function summary(b: Doc<"bounties">, now: number) {
     startsAt: b.startsAt,
     endsAt: b.endsAt,
     par: b.par?.score ?? null,
+    question: b.question ?? null,
     state: now < b.startsAt ? ("upcoming" as const) : now < b.endsAt ? ("open" as const) : ("closed" as const),
   };
 }
@@ -97,7 +98,7 @@ export const submit = mutation({
     if (mine.length >= LIMITS.entries) throw new ConvexError(`Out of entries for this bounty (${LIMITS.entries})`);
     const pushesR = pushes.map((p) => ({ ...p, dose: Math.round(p.dose * 100) / 100 }));
     const entryId = await ctx.db.insert("entries", { bountyId: b._id, playerId: player._id, pushes: pushesR, status: "pending" });
-    await enqueue(ctx, "judge", `judge:${entryId}`, { entryId, slug, pushes: pushesR, prompts: b.prompts, anchors: b.anchors }, 0, player._id);
+    await enqueue(ctx, "judge", `judge:${entryId}`, { entryId, slug, pushes: pushesR, prompts: b.prompts, anchors: b.anchors, ...(b.question ? { question: b.question } : {}) }, 0, player._id);
   },
 });
 
@@ -122,11 +123,12 @@ export const ensure = internalMutation({
       maxNeurons: next.maxNeurons,
       prompts: JUDGE_PROMPTS,
       anchors: next.anchors,
+      question: next.question,
       startsAt,
       endsAt: startsAt + BOUNTY_DAYS * 86400000,
       settled: false,
     });
-    await enqueue(ctx, "par", `par:${slug}`, { slug, prompts: JUDGE_PROMPTS, anchors: next.anchors, maxNeurons: next.maxNeurons, brief: next.brief }, 1);
+    await enqueue(ctx, "par", `par:${slug}`, { slug, prompts: JUDGE_PROMPTS, anchors: next.anchors, question: next.question, maxNeurons: next.maxNeurons, brief: next.brief }, 1);
   },
 });
 

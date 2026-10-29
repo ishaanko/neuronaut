@@ -168,7 +168,7 @@ class Worker:
     def judge(self, job):
         a = job["args"]
         entry = [(int(p["layer"]), int(p["n"]), float(p["dose"])) for p in a["pushes"]]
-        r, = self.eng.judge([entry], a["prompts"], a["anchors"])
+        r, = self.eng.judge([entry], a["prompts"], a["anchors"], a.get("question"))
         self.call("mutation", "worker:finishJudge", id=job["id"], entryId=a["entryId"], **r)
         print(f"judged {a['slug']} {entry}: {r['score']}", flush=True)
 
@@ -182,7 +182,7 @@ class Worker:
         best = (0.0, None)
         for s in range(0, len(entries), 48):
             chunk = entries[s:s + 48]
-            for e, r in zip(chunk, self.eng.judge(chunk, a["prompts"], a["anchors"])):
+            for e, r in zip(chunk, self.eng.judge(chunk, a["prompts"], a["anchors"], a.get("question"))):
                 if r["score"] > best[0]:
                     best = (r["score"], e)
         pushes = [{"layer": l, "n": n, "dose": d} for l, n, d in best[1]] if best[1] else []

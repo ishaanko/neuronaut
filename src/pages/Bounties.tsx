@@ -2,6 +2,8 @@ import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
+import { JUDGE_PROMPTS } from "../../convex/bountyPool";
+import { efficiency } from "../../convex/rules";
 import { LensSearch } from "../components/LensSearch";
 import { Button, ErrorLine, Input, Label, NeuronInput, NeuronLink, Panel, ScrollX } from "../components/ui";
 import { Reply } from "../components/Replies";
@@ -95,7 +97,45 @@ export function Bounty() {
         <div className="mt-4 flex flex-wrap gap-x-8 gap-y-1 font-mono text-sm text-dim">
           <span>up to <span className="text-fg">{b.maxNeurons}</span> {b.maxNeurons === 1 ? "neuron" : "neurons"}</span>
           <span>par <span className="text-fg">{b.par === null ? "being set" : Math.round(b.par)}</span></span>
-          <span>score = 1000 × concept × coherence × efficiency</span>
+        </div>
+
+        <div className="mt-8">
+          <Label className="mb-2">How the judge scores</Label>
+          <p className="max-w-[68ch] text-dim">
+            The judge runs your neurons on {JUDGE_PROMPTS.length} hidden questions, then multiplies three numbers between 0 and 1. Score is 1000
+            times the product.
+          </p>
+          <dl className="mt-3 max-w-[68ch] divide-y divide-line border-y border-line">
+            <div className="grid gap-x-4 py-2.5 sm:grid-cols-[7.5rem_1fr]">
+              <dt className="font-mono text-sm">concept</dt>
+              <dd className="text-dim">
+                {b.question ? (
+                  <>
+                    Whether the replies hit the target. The model, with nothing pushed, reads each reply and answers{" "}
+                    <span className="text-fg">“{b.question}”</span> Concept is how far your replies move its yes from where the
+                    normal replies sit toward certain: 1 is a sure yes on every reply, 0 is no better than normal.
+                  </>
+                ) : (
+                  <>
+                    Whether your push moves the model toward the target. We wrote a few on-target replies and measured how
+                    reading them shifts the model's inner state; concept is the cosine between that shift and yours. It
+                    compares words more than meaning, so bounties opened from now on ask the model a question instead.
+                  </>
+                )}
+              </dd>
+            </div>
+            <div className="grid gap-x-4 py-2.5 sm:grid-cols-[7.5rem_1fr]">
+              <dt className="font-mono text-sm">coherence</dt>
+              <dd className="text-dim">
+                Whether the replies still read as language. The unpushed model reads them back: 1 if they look normal to it,
+                falling to 0 as they turn to word salad, and 0 if any reply loops.
+              </dd>
+            </div>
+            <div className="grid gap-x-4 py-2.5 sm:grid-cols-[7.5rem_1fr]">
+              <dt className="font-mono text-sm">efficiency</dt>
+              <dd className="text-dim">How small your total dose is. Up to 0.5 is free; each full unit past that costs 25%, down to 40%.</dd>
+            </div>
+          </dl>
         </div>
 
         <div className="mt-10">
@@ -149,8 +189,10 @@ export function Bounty() {
                     </span>
                     {e.status === "done" ? (
                       <>
-                        <span className="text-dim">concept {e.concept?.toFixed(2)}</span>
-                        <span className="text-dim">coherence {e.coherence?.toFixed(2)}</span>
+                        <span className="text-dim">
+                          concept {Math.max(0, e.concept ?? 0).toFixed(2)} × coherence {e.coherence?.toFixed(2)} × efficiency{" "}
+                          {efficiency(e.pushes).toFixed(2)} =
+                        </span>
                         <span className="w-12 text-right text-fg">{Math.round(e.score ?? 0)}</span>
                       </>
                     ) : (

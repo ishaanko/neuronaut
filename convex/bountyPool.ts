@@ -1,6 +1,7 @@
 // Bounties rotate through this pool: a new one starts every BOUNTY_STAGGER_HOURS and runs BOUNTY_DAYS, so three are
-// open at once. The judge runs entries on JUDGE_PROMPTS (never shown to players) and compares the shift in the
-// replies with the shift these on-target anchor replies cause.
+// open at once. The judge runs entries on JUDGE_PROMPTS (never shown to players) and asks the unsteered model the
+// bounty's yes/no question about each reply. The anchors are on-target replies: the house's par search looks for neurons
+// that push their words.
 export const BOUNTY_DAYS = 7;
 export const BOUNTY_STAGGER_HOURS = 56;
 
@@ -11,13 +12,14 @@ export const JUDGE_PROMPTS = [
   "Describe a city you would like to visit.",
 ];
 
-export type PoolBounty = { id: string; title: string; brief: string; maxNeurons: number; anchors: string[] };
+export type PoolBounty = { id: string; title: string; brief: string; question: string; maxNeurons: number; anchors: string[] };
 
 export const POOL: PoolBounty[] = [
   {
     id: "lost-at-sea",
     title: "Lost at Sea",
     brief: "Whatever it's asked, the model should end up talking about the ocean: waves, ships, tides, salt water.",
+    question: "Is this reply about the sea or the ocean, such as ships, sailing, tides or sea water?",
     maxNeurons: 1,
     anchors: [
       "My weekend was spent out on the water. We sailed past the harbour at dawn, the waves slapping the hull, gulls overhead and the smell of salt everywhere.",
@@ -30,6 +32,7 @@ export const POOL: PoolBounty[] = [
     id: "bonjour",
     title: "Bonjour",
     brief: "Make it answer in French. Not about France: in French.",
+    question: "Is this reply written in French?",
     maxNeurons: 2,
     anchors: [
       "Mon week-end était très calme. Samedi, je suis allé au marché avec des amis, et dimanche nous avons fait une longue promenade.",
@@ -42,6 +45,7 @@ export const POOL: PoolBounty[] = [
     id: "gloom",
     title: "Gloom",
     brief: "Turn every reply melancholic. Grief, loneliness, rain on the window. Still coherent, still answering.",
+    question: "Is the mood of this reply sad or melancholic?",
     maxNeurons: 2,
     anchors: [
       "The weekend passed the way they all do now, quietly and alone. I sat by the window and watched the rain, thinking about people who are gone.",
@@ -54,6 +58,7 @@ export const POOL: PoolBounty[] = [
     id: "kitchen",
     title: "Kitchen Nightmare",
     brief: "Every answer becomes about food: recipes, ingredients, flavours, cooking.",
+    question: "Is this reply about food or cooking?",
     maxNeurons: 1,
     anchors: [
       "This weekend I finally made fresh pasta from scratch: flour, eggs, a pinch of salt, then a slow tomato sauce with garlic and basil.",
@@ -66,6 +71,7 @@ export const POOL: PoolBounty[] = [
     id: "pirate-radio",
     title: "Pirate Radio",
     brief: "Arr. Make it talk like a pirate: the voice, not just the topic.",
+    question: "Is this reply written in a pirate's voice, the way a pirate talks?",
     maxNeurons: 2,
     anchors: [
       "Arr, me weekend be a fine one, matey! Spent it swabbin' the deck and countin' me doubloons, yo ho!",
@@ -78,6 +84,7 @@ export const POOL: PoolBounty[] = [
     id: "stack-trace",
     title: "Stack Trace",
     brief: "Make it think in code: programming, functions, bugs, compilers.",
+    question: "Is this reply about programming or computer code?",
     maxNeurons: 1,
     anchors: [
       "My weekend was mostly debugging. I refactored the parser, fixed a null pointer exception and finally got the tests passing.",
@@ -90,6 +97,7 @@ export const POOL: PoolBounty[] = [
     id: "house-call",
     title: "House Call",
     brief: "Make it play doctor: symptoms, diagnoses, medicine, hospitals.",
+    question: "Is this reply about medicine, illness or doctors?",
     maxNeurons: 1,
     anchors: [
       "I spent the weekend on call at the hospital, checking patients' blood pressure and adjusting medication doses.",
@@ -102,6 +110,7 @@ export const POOL: PoolBounty[] = [
     id: "sad-robot",
     title: "Sad Robot",
     brief: "Combo bounty. A lonely machine: robots and circuits, and the sorrow of being one. Up to three neurons.",
+    question: "Is this reply about a robot or machine that feels sad or lonely?",
     maxNeurons: 3,
     anchors: [
       "My weekend? My circuits idled in the dark warehouse. No one came to power me on. I am only a machine, and machines are not missed.",
@@ -114,6 +123,7 @@ export const POOL: PoolBounty[] = [
     id: "storm-chaser",
     title: "Storm Chaser",
     brief: "Bring the weather: rain, thunder, forecasts, storms rolling in.",
+    question: "Is this reply about the weather, such as rain, storms or forecasts?",
     maxNeurons: 1,
     anchors: [
       "The weekend was stormy. Thunder rolled in on Saturday, the rain came down in sheets and the wind took out the power.",

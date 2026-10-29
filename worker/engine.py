@@ -306,19 +306,58 @@ class Engine:
             self._targets[key] = (base, shift / len(base))
         return self._targets[key]
 
-    def judge(self, entries, prompts, anchors):
-        """Scores bounty entries (each a list of (layer, n, dose)) on the hidden prompts.
-        concept = cosine between the entry's shift and the anchors' shift. coherence = 1 up to NLL 2.0, falling to 0
-        at 3.5, and 0 if any reply loops (distinct-2 under 0.5). efficiency = 1 up to a total dose of 0.5, then -0.25
-        per unit, floor 0.4. score = 1000 x max(concept, 0) x coherence x efficiency."""
-        base, target = self._target(prompts, anchors)
+    def ask(self, question, prompts, replies):
+        """The unsteered model as a yes/no judge: P(yes) that each reply (to the prompt beside it) fits `question`, from
+        its next-token odds of yes against no. Rows are right-padded and read at their own last token (causal)."""
+        rows = [self.chat(f'Someone asked: "{p}"\nThe reply was: "{r}"\n\n{question} Answer only yes or no.')
+                for p, r in zip(prompts, replies)]
+        T = max(map(len, rows))
+        pad = self.tok.pad_token_id if self.tok.pad_token_id is not None else 0
+        ids = torch.tensor([r + [pad] * (T - len(r)) for r in rows], device=self.dev)
+        with torch.inference_mode():
+            last = self.sp.lm(input_ids=ids, use_cache=False).last_hidden_state
+            logits = self.sp.lm_head(torch.stack([last[i, len(r) - 1] for i, r in enumerate(rows)])).float()
+        yes, no = (logits[:, self._answer_ids(w)].logsumexp(-1) for w in ("yes", "no"))
+        return torch.sigmoid(yes - no).tolist()
+
+    def _answer_ids(self, word):
+        """First-token ids of a yes/no answer in its usual spellings."""
+        return sorted({self.tok(v, add_special_tokens=False).input_ids[0] for v in (word, word.capitalize(), " " + word)})
+
+    def judge(self, entries, prompts, anchors, question=None):
+        """Scores bounty entries (each a list of (layer, n, dose)) on the hidden prompts. With a question, concept is
+        how far the replies move the unsteered model's yes on it from the normal replies toward certain: per prompt
+        (p - p0) / (1 - p0), averaged. Without one (bounties opened before the question judge), it's the old anchor
+        cosine. The rest is shared; see _score."""
+        if question is None:
+            return self._judge_anchors(entries, prompts, anchors)
+        key = ("base", tuple(prompts))
+        if key not in self._targets:
+            self._targets[key] = self._baseline(prompts)
+        base = self._targets[key]
+        p0 = self.ask(question, prompts, [b["text"] for b in base])
         rows = [[self.push(l, n, d) for l, n, d in e] for e in entries]
         out = []
         for e, m in zip(entries, self.measure(rows, base=base)):
-            concept = float(torch.nn.functional.cosine_similarity(m["shift"], target, dim=0))
-            coherence = min(1.0, max(0.0, (3.5 - m["nll"]) / 1.5)) * (m["distinct"] >= 0.5)
-            dose = sum(abs(d) for _, _, d in e)
-            efficiency = min(1.0, max(0.4, 1 - 0.25 * (dose - 0.5)))
-            out.append({"score": round(1000 * max(concept, 0.0) * coherence * efficiency, 1), "concept": round(concept, 4),
-                        "coherence": round(coherence, 3), "texts": m["texts"]})
+            p = self.ask(question, prompts, m["texts"])
+            concept = sum((pi - qi) / max(1 - qi, 1e-6) for pi, qi in zip(p, p0)) / len(p)
+            out.append(self._score(e, m, concept))
         return out
+
+    def _score(self, entry, m, concept):
+        """coherence = 1 up to NLL 2.0, falling to 0 at 3.5, and 0 if any reply loops (distinct-2 under 0.5).
+        efficiency = 1 up to a total dose of 0.5, then -0.25 per unit, floor 0.4 (convex/rules.ts efficiency() shows it
+        on the page). score = 1000 x max(concept, 0) x coherence x efficiency."""
+        coherence = min(1.0, max(0.0, (3.5 - m["nll"]) / 1.5)) * (m["distinct"] >= 0.5)
+        dose = sum(abs(d) for _, _, d in entry)
+        efficiency = min(1.0, max(0.4, 1 - 0.25 * (dose - 0.5)))
+        return {"score": round(1000 * max(concept, 0.0) * coherence * efficiency, 1), "concept": round(concept, 4),
+                "coherence": round(coherence, 3), "texts": m["texts"]}
+
+    def _judge_anchors(self, entries, prompts, anchors):
+        """The old judge: concept = cosine between the entry's shift and the anchors' shift. It rewards replies that
+        share the anchors' words even when they aren't about the target, which is why new bounties use a question."""
+        base, target = self._target(prompts, anchors)
+        rows = [[self.push(l, n, d) for l, n, d in e] for e in entries]
+        return [self._score(e, m, float(torch.nn.functional.cosine_similarity(m["shift"], target, dim=0)))
+                for e, m in zip(entries, self.measure(rows, base=base))]
