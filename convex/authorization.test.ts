@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { dailyPoints } from "./daily";
+import { NEW_GUESTS_PER_MINUTE } from "./rules";
 import schema from "./schema";
 
 // One player must never see or act on another's private state: unscanned profiles, daily guesses and answers, bounty
@@ -107,6 +108,18 @@ test("a guest's game stays theirs: hidden from the leaderboard, never shown to a
   expect((await carol.query(api.players.me, {}))!.points).toBe(dailyPoints(1));
   // the token no longer reaches the game it used to name
   expect(await t.query(api.daily.current, { guest })).toMatchObject({ result: null, guesses: [] });
+});
+
+test("a script minting guest tokens is cut off each minute, while existing guests and accounts keep playing", async () => {
+  const { t, alice, seedDaily } = await setup();
+  await seedDaily();
+  const token = (i: number) => `minted-guest-token-${String(i).padStart(4, "0")}`;
+  for (let i = 0; i < NEW_GUESTS_PER_MINUTE; i++) await t.mutation(api.daily.open, { guest: token(i) });
+  await expect(t.mutation(api.daily.guess, { layer: 1, n: 2, guest: token(NEW_GUESTS_PER_MINUTE) })).rejects.toThrow("Lots of new players");
+  await t.mutation(api.daily.guess, { layer: 1, n: 2, guest: token(0) }); // already a guest
+  await alice.mutation(api.daily.guess, { layer: 1, n: 2 });
+  vi.setSystemTime(NOW + 60_000);
+  await t.mutation(api.daily.guess, { layer: 1, n: 2, guest: token(NEW_GUESTS_PER_MINUTE) });
 });
 
 test("a measured guess settles its own player's daily, whoever's context the worker's callback arrives in", async () => {
