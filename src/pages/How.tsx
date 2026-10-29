@@ -28,7 +28,8 @@ export function How() {
         <p>
           Each day one neuron is pushed while the model answers three questions, and you get {LIMITS.guesses} guesses to find
           it. Replies stop after {REPLY_TOKENS} tokens. A guess gets a heat from 0 to 99 and a rank: how much its effect looks
-          like the hidden neuron's, compared with every other neuron. After {HINTS.band} guesses you see which eight layers it's
+          like the hidden neuron's, compared with every other neuron. It doesn't care how near the layers are: two neurons
+          in the same layer can act nothing alike. After {HINTS.band} guesses you see which eight layers it's
           in, and after {HINTS.token} a word it pushes. Your time runs from when you first open the puzzle to your last guess.
           Solve it every day to keep a streak.
         </p>
