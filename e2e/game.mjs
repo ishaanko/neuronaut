@@ -104,7 +104,7 @@ try {
     const dialog = page.getByRole("dialog", { name: "Today's result" }); // the result card opens by itself
     await dialog.waitFor({ timeout: 60000 });
     const card = await dialog.innerText();
-    const time = card.match(/Solved in \d+ guess(?:es)?, (\d+:\d\d)/)?.[1];
+    const time = card.match(/Solved\s+Daily #\d+, in \d+ guess(?:es)?, (\d+:\d\d)/)?.[1];
     if (!time) throw new Error(`no solve time on the result card: ${card.replace(/\s+/g, " ").slice(0, 120)}`);
     await dialog.getByRole("button", { name: "Make an account" }).waitFor();
     await page.keyboard.press("Escape");
