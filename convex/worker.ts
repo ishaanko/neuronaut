@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
-import { settleIfEnded } from "./bounties";
+import { rankEntry, settleIfEnded } from "./bounties";
 import { refundPending, resolvePending } from "./daily";
 import { bumpStats, globalStats } from "./jobs";
 import { checkWorker, neuronKey, rarity, today } from "./lib";
@@ -162,6 +162,7 @@ export const finishJudge = mutation({
     if (!(await ctx.db.get(id))) return; // admin:removePlayer deleted the job (and its row) while it ran
     await ctx.db.patch(entryId, { status: "done", ...result });
     await ctx.db.patch(id, { status: "done" });
+    await rankEntry(ctx, entryId);
     await settleIfEnded(ctx, entryId);
   },
 });

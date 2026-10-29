@@ -226,6 +226,7 @@ export default defineSchema({
     endsAt: v.number(),
     par: v.optional(v.object({ score: v.number(), pushes: v.array(push) })),
     settled: v.boolean(),
+    ranked: v.optional(v.boolean()), // its standings rows are complete (bounties.ts ranking); unset on older bounties
   })
     .index("by_slug", ["slug"])
     .index("by_ends", ["endsAt"]),
@@ -241,5 +242,20 @@ export default defineSchema({
     texts: v.optional(v.array(v.string())),
   })
     .index("by_bounty", ["bountyId"])
+    .index("by_bounty_status", ["bountyId", "status"])
     .index("by_player_bounty", ["playerId", "bountyId"]),
+
+  // Each player's best judged entry on a bounty (bounties.ts rankEntry), so its leaderboard reads 50 small rows instead
+  // of every entry with its replies. at: the entry's creation time, which breaks ties (earlier wins).
+  standings: defineTable({
+    bountyId: v.id("bounties"),
+    playerId: v.id("players"),
+    entryId: v.id("entries"),
+    handle: v.string(),
+    score: v.number(),
+    neurons: v.number(),
+    at: v.number(),
+  })
+    .index("by_bounty_score", ["bountyId", "score"])
+    .index("by_bounty_player", ["bountyId", "playerId"]),
 });

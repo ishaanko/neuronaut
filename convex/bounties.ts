@@ -26,13 +26,43 @@ function summary(b: Doc<"bounties">) {
   };
 }
 
-// Each player's best finished entry, highest first.
-async function standings(ctx: QueryCtx, b: Doc<"bounties">) {
+// Each player's best finished entry, worked out from every entry. Only for bounties opened before the standings table
+// (no `ranked`), until rankOld fills theirs in.
+async function bestEntries(ctx: QueryCtx, b: Doc<"bounties">) {
   const entries = await ctx.db.query("entries").withIndex("by_bounty", (q) => q.eq("bountyId", b._id)).collect();
   const best = new Map<string, Doc<"entries">>();
   for (const e of entries)
     if (e.status === "done" && (best.get(e.playerId)?.score ?? -1) < (e.score ?? 0)) best.set(e.playerId, e);
-  return [...best.values()].sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a._creationTime - b._creationTime);
+  return [...best.values()];
+}
+
+type Rank = Pick<Doc<"standings">, "playerId" | "entryId" | "score" | "neurons" | "at"> & { handle?: string };
+const byRank = (a: Rank, b: Rank) => b.score - a.score || a.at - b.at;
+
+// A bounty's leaderboard, best first, at most `limit` rows: each player's best judged entry, the earlier on a tie.
+async function ranking(ctx: QueryCtx, b: Doc<"bounties">, limit = Infinity): Promise<Rank[]> {
+  if (!b.ranked) {
+    const best = await bestEntries(ctx, b);
+    const rows = best.map((e) => ({ playerId: e.playerId, entryId: e._id, score: e.score ?? 0, neurons: e.pushes.length, at: e._creationTime }));
+    return rows.sort(byRank).slice(0, limit);
+  }
+  const q = ctx.db.query("standings").withIndex("by_bounty_score", (q) => q.eq("bountyId", b._id)).order("desc");
+  return (limit === Infinity ? await q.collect() : await q.take(limit)).sort(byRank);
+}
+
+// After the worker judges an entry (worker.ts finishJudge): it becomes its player's standing if it beats their best.
+export async function rankEntry(ctx: MutationCtx, entryId: Id<"entries">) {
+  const e = await ctx.db.get(entryId);
+  if (!e || e.status !== "done" || e.score === undefined || !Number.isFinite(e.score)) return;
+  const rank = { entryId, score: e.score, neurons: e.pushes.length, at: e._creationTime };
+  const row = await ctx.db
+    .query("standings")
+    .withIndex("by_bounty_player", (q) => q.eq("bountyId", e.bountyId).eq("playerId", e.playerId))
+    .unique();
+  if (!row) {
+    const handle = (await ctx.db.get(e.playerId))?.handle ?? "?";
+    await ctx.db.insert("standings", { bountyId: e.bountyId, playerId: e.playerId, handle, ...rank });
+  } else if (rank.score > row.score || (rank.score === row.score && rank.at < row.at)) await ctx.db.patch(row._id, rank);
 }
 
 export const list = query({
@@ -52,7 +82,7 @@ export const get = query({
     if (!b) return null;
     const s = summary(b);
     const closed = b.settled;
-    const top = await standings(ctx, b);
+    const top = await ranking(ctx, b, 50);
     const player = await playerFor(ctx);
     const mine = player
       ? await ctx.db.query("entries").withIndex("by_player_bounty", (q) => q.eq("playerId", player._id).eq("bountyId", b._id)).collect()
@@ -62,14 +92,17 @@ export const get = query({
       parPushes: closed ? (b.par?.pushes ?? null) : null,
       promptCount: b.prompts.length, // the prompts themselves stay hidden
       leaderboard: await Promise.all(
-        top.slice(0, 50).map(async (e) => ({
-          handle: (await ctx.db.get(e.playerId))?.handle ?? "?",
-          score: e.score ?? 0,
-          neurons: e.pushes.length,
-          pushes: closed ? e.pushes : null,
-          texts: closed ? (e.texts ?? []) : null,
-          you: !!player && e.playerId === player._id,
-        })),
+        top.map(async (r) => {
+          const e = closed ? await ctx.db.get(r.entryId) : null; // its neurons and replies show once it's settled
+          return {
+            handle: r.handle ?? (await ctx.db.get(r.playerId))?.handle ?? "?",
+            score: r.score,
+            neurons: r.neurons,
+            pushes: closed ? (e?.pushes ?? []) : null,
+            texts: closed ? (e?.texts ?? []) : null,
+            you: !!player && r.playerId === player._id,
+          };
+        }),
       ),
       mine: mine
         .sort((a, b) => b._creationTime - a._creationTime)
@@ -136,6 +169,7 @@ export const ensure = internalMutation({
       startsAt,
       endsAt,
       settled: false,
+      ranked: true,
     });
     await ctx.scheduler.runAt(endsAt, internal.bounties.settle, {});
     await enqueue(ctx, "par", `par:${slug}`, { slug, prompts: JUDGE_PROMPTS, anchors: next.anchors, question: next.question, maxNeurons: next.maxNeurons, brief: next.brief }, 1);
@@ -150,16 +184,27 @@ export const settle = internalMutation({
     const now = Date.now();
     const closed = await ctx.db.query("bounties").withIndex("by_ends", (q) => q.lte("endsAt", now)).collect();
     for (const b of closed.filter((b) => !b.settled)) {
-      const judging = await ctx.db.query("entries").withIndex("by_bounty", (q) => q.eq("bountyId", b._id)).filter((q) => q.eq(q.field("status"), "pending")).first();
+      const judging = await ctx.db.query("entries").withIndex("by_bounty_status", (q) => q.eq("bountyId", b._id).eq("status", "pending")).first();
       if (judging) continue;
-      const top = await standings(ctx, b);
-      for (const [i, e] of top.entries()) {
-        const bonus = (PRIZES[i] ?? 0) + (b.par && (e.score ?? 0) > b.par.score ? PAR_BONUS : 0);
+      const top = await ranking(ctx, b);
+      for (const [i, r] of top.entries()) {
+        const bonus = (PRIZES[i] ?? 0) + (b.par && r.score > b.par.score ? PAR_BONUS : 0);
         if (!bonus) continue;
-        const p = (await ctx.db.get(e.playerId))!;
+        const p = (await ctx.db.get(r.playerId))!;
         await ctx.db.patch(p._id, { points: p.points + bonus, bountyWins: p.bountyWins + (i === 0 ? 1 : 0) });
       }
       await ctx.db.patch(b._id, { settled: true });
+    }
+  },
+});
+
+// Hourly: fills in the standings of bounties opened before the standings table, a few at a time, then marks them ranked.
+export const rankOld = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    for (const b of (await ctx.db.query("bounties").collect()).filter((b) => !b.ranked).slice(0, 3)) {
+      for (const e of await bestEntries(ctx, b)) await rankEntry(ctx, e._id);
+      await ctx.db.patch(b._id, { ranked: true });
     }
   },
 });
