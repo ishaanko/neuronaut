@@ -78,7 +78,7 @@ export function ExampleGame({ end }: { end?: ReactNode }) {
 
         {guesses.length > 0 && (
           <div>
-            <div className="mb-1 text-xs text-dim">Guesses so far</div>
+            <div className="mb-1 text-xs text-dim">Guesses so far: heat, then rank among all neurons (#1 is the closest)</div>
             {guesses.map((g, j) => (
               <GuessRow key={j} g={g} latest={j === guesses.length - 1 && !!step.guess} />
             ))}

@@ -30,10 +30,10 @@ export const EXAMPLE = {
   ],
   steps: [
     {
-      say: "Every answer turned into civil engineering. A good morning is now an earthwork, and a pet is a pile of rocks. Something pushed the model hard toward one topic.",
+      say: "Every answer turned into civil engineering. A good morning is now an earthwork, and a pet is a pile of rocks. The hidden neuron drags any topic toward building materials.",
     },
     {
-      say: "Search a word from the answers. Searching shows neurons whose push makes that word more likely. The top one pushes “concrete” itself, so try it.",
+      say: "Search a word from the answers. The search lists neurons that make the model likelier to say it. The top hit is all about “concrete”, so guess it.",
       search: {
         q: "concrete",
         hits: [
@@ -48,11 +48,11 @@ export const EXAMPLE = {
       guess: { layer: 26, n: 3118, heat: 3, rank: 192_801 },
     },
     {
-      say: "Cold. That neuron adds one word, but the hidden one rewrote the whole topic. Neurons that just add a word mostly sit in layers 16 to 31, so try an early one from the same search.",
+      say: "Heat 3, cold. That neuron only adds one word, but the hidden one rewrote the whole topic. Late layers (16 to 31) are full of word-adders; topic-changers sit early. Try an early one from the same search.",
       guess: { layer: 5, n: 4578, heat: 31, rank: 6_124 },
     },
     {
-      say: "Warmer. So stay early and search “rock” in layer 4 only. The limestone neuron looks right for slopes and riprap.",
+      say: "Heat 31, warmer. Heat only compares what two neurons do, so this one changes the topic more like the answer does. Stay early and search “rock” in layer 4 only. The limestone neuron fits slopes and riprap.",
       search: {
         q: "rock",
         layer: 4,
@@ -67,7 +67,7 @@ export const EXAMPLE = {
       guess: { layer: 4, n: 7948, heat: 46, rank: 901 },
     },
     {
-      say: "Getting hot: only 900 neurons out of 294,912 act more like the answer. Try “materials” in the same layer.",
+      say: "Heat 46, rank 901: only 900 of the 294,912 neurons act more like the answer. Search “materials” in the same layer.",
       search: {
         q: "materials",
         layer: 4,
@@ -80,7 +80,7 @@ export const EXAMPLE = {
       guess: { layer: 4, n: 6939, heat: 89, rank: 4 },
     },
     {
-      say: "Very hot: rank 4. The “rock” search had one more layer-4 neuron, with “rock” and “concrete” buried under junk. Early neurons often have messy lenses. Trust what they do over what the lens says.",
+      say: "Very hot: rank 4. The “rock” search had one more layer-4 neuron, with “rock” and “concrete” buried under junk. Early neurons often have messy word lists. Trust what they do over what the search says.",
       guess: { layer: 4, n: 7701, heat: 100, rank: 0, correct: true },
     },
   ] satisfies ExampleStep[],

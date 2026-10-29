@@ -308,10 +308,11 @@ export function Daily() {
       >
         <div className="mb-8 space-y-3">
           {header}
-          <p className="text-xl italic">One neuron was pushed while the model answered. Which one?</p>
+          <p className="text-xl italic">We turned one neuron way up while the model answered. Which one?</p>
           <p className="max-w-[68ch] text-dim">
-            Read what it said, search for words that stand out, and guess. Heat tells you how close each guess is. You have{" "}
-            {d.limit} guesses.{" "}
+            Read what it said, search for words that stand out, and guess. Heat (0 to 99) is how much your guess bends the
+            answers the way the hidden neuron does. It doesn't track layers: a neighbor can be cold and a far layer hot. You
+            have {d.limit} guesses.{" "}
             <button className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg" onClick={() => setExample(true)}>
               Watch a game
             </button>
