@@ -97,7 +97,7 @@ export function Tokens({ tokens, className = "" }: { tokens: string[]; className
 const HAN = /[\u3400-\u9fff]/; // Chinese characters
 
 // Shown under word lists that contain Chinese tokens, which surprise players who expect English only.
-export function CjkNote({ tokens, className = "" }: { tokens: string[]; className?: string }) {
+export function ChineseNote({ tokens, className = "" }: { tokens: string[]; className?: string }) {
   if (!tokens.some((t) => HAN.test(t))) return null;
   return (
     <p className={`text-sm text-dim ${className}`}>

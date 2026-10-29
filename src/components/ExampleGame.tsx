@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { EXAMPLE, type ExampleGuess } from "../data/example";
 import { dexNo, rankText } from "../lib/format";
 import { Reply } from "./Replies";
-import { Button, CjkNote, HeatBar } from "./ui";
+import { Button, ChineseNote, HeatBar } from "./ui";
 
 function GuessRow({ g, latest }: { g: ExampleGuess; latest: boolean }) {
   return (
@@ -72,7 +72,7 @@ export function ExampleGame({ end }: { end?: ReactNode }) {
                 );
               })}
             </ul>
-            <CjkNote tokens={step.search.hits.flatMap((h) => h.steer)} className="border-t border-line px-3 py-2" />
+            <ChineseNote tokens={step.search.hits.flatMap((h) => h.steer)} className="border-t border-line px-3 py-2" />
           </div>
         )}
 
