@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type QueryCtx } from "./_generated/server";
 import { BOUNTY_DAYS, BOUNTY_STAGGER_HOURS, JUDGE_PROMPTS, POOL } from "./bountyPool";
@@ -11,7 +12,8 @@ export const PRIZES = [50, 25, 10]; // points for the top three when a bounty cl
 export const PAR_BONUS = 10;
 export const DOSE = { min: 0.05, max: 1.0 };
 
-function summary(b: Doc<"bounties">, now: number) {
+// A bounty's public fields. Whether it's open is left to the client's clock (rules.ts bountyState).
+function summary(b: Doc<"bounties">) {
   return {
     slug: b.slug,
     title: b.title,
@@ -21,7 +23,6 @@ function summary(b: Doc<"bounties">, now: number) {
     endsAt: b.endsAt,
     par: b.par?.score ?? null,
     question: b.question ?? null,
-    state: now < b.startsAt ? ("upcoming" as const) : now < b.endsAt ? ("open" as const) : ("closed" as const),
   };
 }
 
@@ -37,21 +38,20 @@ async function standings(ctx: QueryCtx, b: Doc<"bounties">) {
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const now = Date.now();
     const recent = await ctx.db.query("bounties").withIndex("by_ends").order("desc").take(20);
-    return recent.map((b) => summary(b, now)).sort((a, b) => a.endsAt - b.endsAt);
+    return recent.map(summary).sort((a, b) => a.endsAt - b.endsAt);
   },
 });
 
-// One bounty: the brief, par, the leaderboard (neurons stay secret until it closes) and this player's entries.
+// One bounty: the brief, par, the leaderboard (neurons stay secret until it closes) and this player's entries. "Closed"
+// here means settled, which a scheduled settle does the moment it ends: data, not the clock, so the reveal reruns this.
 export const get = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
     const b = await ctx.db.query("bounties").withIndex("by_slug", (q) => q.eq("slug", slug)).unique();
     if (!b) return null;
-    const now = Date.now();
-    const s = summary(b, now);
-    const closed = s.state === "closed";
+    const s = summary(b);
+    const closed = b.settled;
     const top = await standings(ctx, b);
     const player = await playerFor(ctx);
     const mine = player
@@ -114,6 +114,7 @@ export const ensure = internalMutation({
     if (live.length >= OPEN + 1) return;
     const lastStart = Math.max(0, ...all.map((b) => b.startsAt));
     const startsAt = live.length < OPEN ? now : lastStart + BOUNTY_STAGGER_HOURS * 3600000;
+    const endsAt = startsAt + BOUNTY_DAYS * 86400000;
     const next = POOL[all.length % POOL.length];
     const season = Math.floor(all.length / POOL.length);
     const slug = season ? `${next.id}-${season + 1}` : next.id;
@@ -126,19 +127,20 @@ export const ensure = internalMutation({
       anchors: next.anchors,
       question: next.question,
       startsAt,
-      endsAt: startsAt + BOUNTY_DAYS * 86400000,
+      endsAt,
       settled: false,
     });
+    await ctx.scheduler.runAt(endsAt, internal.bounties.settle, {});
     await enqueue(ctx, "par", `par:${slug}`, { slug, prompts: JUDGE_PROMPTS, anchors: next.anchors, question: next.question, maxNeurons: next.maxNeurons, brief: next.brief }, 1);
   },
 });
 
-// Hourly: pay out bounties that closed.
+// When a bounty ends (ensure schedules it), and hourly in case that run failed: pay out bounties that closed.
 export const settle = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
-    const closed = await ctx.db.query("bounties").withIndex("by_ends", (q) => q.lt("endsAt", now)).collect();
+    const closed = await ctx.db.query("bounties").withIndex("by_ends", (q) => q.lte("endsAt", now)).collect();
     for (const b of closed.filter((b) => !b.settled)) {
       const top = await standings(ctx, b);
       for (const [i, e] of top.entries()) {

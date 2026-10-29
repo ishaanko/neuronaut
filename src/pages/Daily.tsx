@@ -11,6 +11,7 @@ import { ChartLegend, HeatChart } from "../components/HeatChart";
 import { Button, ErrorLine, HeatBar, Label, Modal, NeuronInput, NeuronLink, Panel, Plate } from "../components/ui";
 import { clock, dexNo, heatEmoji, heatVar, rankText } from "../lib/format";
 import { useUnlock } from "../lib/notes";
+import { useNow } from "../lib/now";
 import { errorText, useSession } from "../lib/session";
 
 type Daily = NonNullable<(typeof api.daily.current)["_returnType"]>;
@@ -20,17 +21,6 @@ function shareText(d: Daily) {
   const sq = r.heats.map((h, i) => heatEmoji(h, r.solved && i === r.heats.length - 1)).join("");
   const time = r.seconds === null ? "" : ` in ${clock(r.seconds)}`;
   return `Neuronaut #${d.number}${r.practice ? " (practice)" : ""} ${r.solved ? r.guesses : "X"}/${d.limit}${time}\n${sq}\n${location.origin}/daily`;
-}
-
-// The current time, updated once a second while `on`.
-function useNow(on: boolean) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!on) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [on]);
-  return now;
 }
 
 const SLOW_MS = 10_000; // a guess normally scores in about a second; past this, check whether the worker is up

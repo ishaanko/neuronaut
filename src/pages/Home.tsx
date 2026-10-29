@@ -2,11 +2,12 @@ import { useQuery } from "convex/react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
-import { LIMITS, MODEL } from "../../convex/rules";
+import { LIMITS, MODEL, bountyState } from "../../convex/rules";
 import { HowToPlay } from "../components/HowToPlay";
 import { Reply } from "../components/Replies";
 import { Label, NeuronLink, RarityTag } from "../components/ui";
 import { ago, until } from "../lib/format";
+import { useNow } from "../lib/now";
 import { useSession } from "../lib/session";
 
 // One cell in the strip of modes under the hero: name, one line on what you do, and its live status.
@@ -26,7 +27,8 @@ export function Home() {
   const daily = useQuery(api.daily.current, { guest });
   const bounties = useQuery(api.bounties.list);
   const [example, setExample] = useState(false);
-  const open = bounties?.filter((b) => b.state === "open") ?? [];
+  const now = useNow(true, 30_000);
+  const open = bounties?.filter((b) => bountyState(b, now) === "open") ?? [];
   const total = MODEL.layers * MODEL.width;
 
   const dailyStatus = !daily
