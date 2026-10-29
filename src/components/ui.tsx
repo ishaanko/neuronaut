@@ -94,6 +94,19 @@ export function Tokens({ tokens, className = "" }: { tokens: string[]; className
   );
 }
 
+const HAN = /[\u3400-\u9fff]/; // Chinese characters
+
+// Shown under word lists that contain Chinese tokens, which surprise players who expect English only.
+export function ChineseNote({ tokens, className = "" }: { tokens: string[]; className?: string }) {
+  if (!tokens.some((t) => HAN.test(t))) return null;
+  return (
+    <p className={`text-sm text-dim ${className}`}>
+      Why Chinese? {MODEL.name} learned from a lot of Chinese text, and many neurons hold one idea in both languages, so
+      a concrete neuron pushes both concrete and 混凝土.
+    </p>
+  );
+}
+
 export function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) {
   return (
     <div>
