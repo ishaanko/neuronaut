@@ -70,8 +70,9 @@ services that restart on a crash and log to `logs/`. `./up.sh stop` stops them. 
 terminal's cgroup and die with it, so they don't work here.
 
 Production: pushes to `main` deploy the site and the Convex backend together on Vercel (`vercel.json` runs
-`convex deploy` with the prod deploy key). The GPU worker serves production with `WORKER_ENV=.env.prod.local ./up.sh`,
-where `worker/.env.prod.local` holds the prod `CONVEX_URL` and `WORKER_SECRET`. The E2E runs against it with
+`convex deploy` with the prod deploy key). The GPU worker serves production as its own enabled unit, `./up.sh prod`,
+which survives reboots and which the dev `./up.sh` never touches. `worker/.env.prod.local` holds the prod `CONVEX_URL`
+and `WORKER_SECRET`. The E2E runs against it with
 `node e2e/game.mjs --url https://neuronaut.ishaanko.com --deployment greedy-skunk-576`.
 
 ## Layout

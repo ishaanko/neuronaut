@@ -3,6 +3,7 @@ import { v } from "convex/values";
 
 export const push = v.object({ layer: v.number(), n: v.number(), dose: v.number() });
 export const ladder = v.object({ ranks: v.array(v.number()), cos: v.array(v.float64()) }); // see rules.ts ladderRank
+export const jobKind = v.union(v.literal("profile"), v.literal("judge"), v.literal("daily"), v.literal("par"), v.literal("combo"));
 export const effect = v.union(v.literal("quiet"), v.literal("shift"), v.literal("word"), v.literal("breaks")); // rules.ts EFFECTS
 
 export default defineSchema({
@@ -116,7 +117,7 @@ export default defineSchema({
 
   // Work for the GPU worker. key dedupes (one pending profile per neuron).
   jobs: defineTable({
-    kind: v.union(v.literal("profile"), v.literal("judge"), v.literal("daily"), v.literal("par"), v.literal("combo")),
+    kind: jobKind,
     key: v.string(),
     args: v.any(),
     priority: v.number(), // 0 = a player is waiting, GUEST_PRIORITY (jobs.ts) = a guest is, 1 = background
@@ -126,8 +127,12 @@ export default defineSchema({
     by: v.optional(v.id("players")), // the player who asked, for their GPU budget
   })
     .index("by_status_priority", ["status", "priority"])
+    .index("by_status_kind_priority", ["status", "kind", "priority"])
     .index("by_by_status", ["by", "status"])
     .index("by_key", ["key"]),
+
+  // One row: when the worker last checked in (worker.ts heartbeat), so a guess that hangs can say the worker is down.
+  heartbeats: defineTable({ at: v.number() }),
 
   dailies: defineTable({
     date: v.string(),

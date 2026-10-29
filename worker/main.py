@@ -3,14 +3,19 @@ measures every neuron in the model while it has nothing else to do.
 
     CONVEX_URL=http://127.0.0.1:3210 WORKER_SECRET=... uv run python main.py [--sweep]
 
-Players wait on profile and judge jobs (priority 0), so those go first; the sweep only runs one batch at a time between
-checks for new jobs. The sweep's results stay in a local store (store.py), not in Convex: a profile job for a neuron
-the sweep already measured is answered from it with no GPU work, and daily ranks are computed against all of it.
+Guesses (profile jobs) have a lane of their own: a thread with its own Convex connection that answers them from the
+store, so a guess never waits behind a judge or par search. Everything else runs on the GPU loop, where jobs players
+wait on (priority 0) go first and the sweep only runs one batch at a time between checks for new jobs. The sweep's
+results stay in a local store (store.py), not in Convex: a profile job for a neuron the sweep already measured is
+answered from it with no GPU work, and daily ranks are computed against all of it.
 """
 import argparse
+import asyncio
 import datetime
 import os
+import queue
 import re
+import threading
 
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")  # less fragmentation, so batches keep fitting
 import random
@@ -46,7 +51,14 @@ PAR_DOSES = [0.4, 0.7, 1.0]
 DIFFICULTY = ["easy", "easy", "medium", "medium", "hard", "hard", "hard"]  # Monday first
 BANDS = {"easy": [(19, 25), (26, 30)], "medium": [(11, 18), (19, 25)], "hard": [(3, 10), (11, 18)]}
 LADDER_EVERY = 600  # sweep batches (~1.5 h) between refreshes of upcoming dailies' ladders
+GPU_KINDS = ["judge", "daily", "par", "combo"]  # the GPU loop's jobs; profile jobs go to the profile lane
+WAKE_S = 300  # an idle lane claims again this often, to pick up its jobs a restart left running (STALE_MS in worker.ts)
+HEARTBEAT_S = 60  # how often the worker checks in (worker:heartbeat), so a hanging guess can say the worker is down
 STORE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", f"sweep-{MODEL.replace('/', '--')}")
+
+
+def neuron(job):
+    return int(job["args"]["layer"]), int(job["args"]["n"])
 
 
 def as_profile(p):
@@ -56,10 +68,24 @@ def as_profile(p):
 class Worker:
     def __init__(self, url, secret):
         self.url, self.secret = url, secret
-        self.c = ConvexClient(url)
+        self.local = threading.local()
+        self.gpu = threading.Lock()
+        self.misses = queue.Queue()  # profile jobs for neurons not in the store yet (measure_misses)
         self.eng = Engine(MODEL)
         self.lens = Lens()
         self.store = Store(STORE, *self.lens.kl.shape)
+
+    @property
+    def c(self):
+        """This thread's Convex connection: each lane blocks on its own subscription."""
+        if not hasattr(self.local, "c"):
+            self.local.c = ConvexClient(self.url)
+        return self.local.c
+
+    def reconnect(self):
+        # a client whose connection died ("channel closed") hangs on every later call, so start a fresh one; its first
+        # call waits until the backend is back
+        self.local.c = ConvexClient(self.url)
 
     def call(self, kind, name, **args):
         return getattr(self.c, kind)(name, {"secret": self.secret, **args})
@@ -69,8 +95,6 @@ class Worker:
         by = {}
         for j in jobs:
             by.setdefault(j["kind"], []).append(j)
-        if "profile" in by:
-            self.guard(by["profile"], self.profiles)
         for j in by.get("judge", []):
             self.guard([j], lambda js: self.judge(js[0]))
         for j in by.get("par", []):
@@ -89,14 +113,37 @@ class Worker:
                 self.call("mutation", "worker:fail", id=j["id"], error=f"{type(e).__name__}: {e}")
 
     def profiles(self, jobs):
-        neurons = [(int(j["args"]["layer"]), int(j["args"]["n"])) for j in jobs]
+        """Answers neurons the sweep measured straight from the store. The rest go to measure_misses, so they never hold
+        up the next guess."""
+        known = [j for j in jobs if self.store.has(*neuron(j))]
+        for j in jobs:
+            if j not in known:
+                self.misses.put(j)
+        if known:
+            t = time.time()
+            self.call("mutation", "worker:putProfiles", jobIds=[j["id"] for j in known],
+                      profiles=[as_profile(self.store.get(*neuron(j))) for j in known])
+            print(f"profiled {len(known)} from the store in {time.time() - t:.1f}s", flush=True)
+
+    def measure_misses(self):
+        """Measures guessed neurons the sweep hasn't reached yet, on a thread of their own, once the GPU is free."""
+        while True:
+            jobs = [self.misses.get()]
+            while not self.misses.empty():
+                jobs.append(self.misses.get())
+            try:
+                self.guard(jobs, self.measure)
+            except Exception:  # Convex unreachable even for worker:fail
+                traceback.print_exc()
+                self.reconnect()
+
+    def measure(self, jobs):
         t = time.time()
-        known = {k: self.store.get(*k) for k in neurons if self.store.has(*k)}
-        fresh = self.eng.profile([k for k in neurons if k not in known]) if len(known) < len(neurons) else []
+        with self.gpu:
+            fresh = self.eng.profile([neuron(j) for j in jobs])
         self.store.put(fresh)
-        res = list(known.values()) + fresh
-        self.call("mutation", "worker:putProfiles", jobIds=[j["id"] for j in jobs], profiles=[as_profile(p) for p in res])
-        print(f"profiled {len(res)} in {time.time() - t:.1f}s", flush=True)
+        self.call("mutation", "worker:putProfiles", jobIds=[j["id"] for j in jobs], profiles=[as_profile(p) for p in fresh])
+        print(f"profiled {len(fresh)} on the GPU in {time.time() - t:.1f}s", flush=True)
 
     def combo(self, job):
         """A lab experiment: two pushes alone and together while the model reads the same normal replies (Engine.forced),
@@ -230,7 +277,8 @@ class Worker:
             return False
         chunk = [tuple(map(int, order[i])) for i in range(cur, min(cur + size, len(order))) if not self.store.has(*order[i])]
         t = time.time()
-        res = self.eng.profile(chunk, batch=size) if chunk else []
+        with self.gpu:
+            res = self.eng.profile(chunk, batch=size) if chunk else []
         self.store.put(res)
         nxt = min(cur + size, len(order))
         open(path, "w").write(str(nxt))
@@ -244,14 +292,20 @@ class Worker:
             self.call("mutation", "worker:putSwept", swept=self.store.count())
         return True
 
-    def wait(self):
-        sub = self.c.subscribe("worker:pending", {"secret": self.secret})
-        try:
-            for count in sub:
+    def wait(self, kinds):
+        """Blocks until a job of `kinds` is pending, or WAKE_S passes. Uses the async iterator: the client's blocking one
+        holds the GIL while it waits, which freezes the worker's other threads."""
+        async def first():
+            sub = self.c.subscribe("worker:pending", {"secret": self.secret, "kinds": kinds})
+            async for count in sub:
                 if count:
+                    sub.unsubscribe()  # a timeout's cancellation drops the subscription itself
                     return
-        finally:
-            sub.unsubscribe()
+
+        try:
+            asyncio.run(asyncio.wait_for(first(), WAKE_S))
+        except TimeoutError:
+            pass
 
     def loop(self, sweep):
         state = None
@@ -264,14 +318,38 @@ class Worker:
         self.refresh_ladders()
         print("worker ready", flush=True)
         while True:
-            jobs = self.call("mutation", "worker:claim", max=24)
+            jobs = self.call("mutation", "worker:claim", max=24, kinds=GPU_KINDS)
             if jobs:
-                self.run(jobs)
+                with self.gpu:
+                    self.run(jobs)
                 # judging and par searches batch wider than the sweep; give that memory back, or the sweep's next
                 # batch no longer fits in VRAM and WSL spills it to system RAM (~7x slower, no error)
                 torch.cuda.empty_cache()
             elif not (state and self.sweep_batch(state)):
-                self.wait()
+                self.wait(GPU_KINDS)
+
+    def profile_lane(self):
+        """Answers guesses on a thread of their own: a neuron the sweep measured is a store lookup (~0.1 s)."""
+        while True:
+            try:
+                jobs = self.call("mutation", "worker:claim", max=24, kinds=["profile"])
+                if jobs:
+                    self.guard(jobs, self.profiles)
+                else:
+                    self.wait(["profile"])
+            except Exception:
+                traceback.print_exc()
+                time.sleep(10)
+                self.reconnect()
+
+    def heartbeat(self):
+        while True:
+            try:
+                self.call("mutation", "worker:heartbeat")
+            except Exception:
+                traceback.print_exc()
+                self.reconnect()
+            time.sleep(HEARTBEAT_S)
 
 
 def main():
@@ -279,6 +357,9 @@ def main():
     ap.add_argument("--sweep", action="store_true", help="measure every neuron when idle")
     a = ap.parse_args()
     w = Worker(os.environ["CONVEX_URL"], os.environ["WORKER_SECRET"])
+    threading.Thread(target=w.profile_lane, daemon=True).start()
+    threading.Thread(target=w.measure_misses, daemon=True).start()
+    threading.Thread(target=w.heartbeat, daemon=True).start()
     while True:
         try:
             w.loop(a.sweep)
@@ -287,9 +368,7 @@ def main():
         except Exception:  # Convex unreachable and the like: keep the model loaded and retry
             traceback.print_exc()
             time.sleep(10)
-            # a client whose connection died ("channel closed") hangs on every later call, so start a fresh one; its
-            # first call waits until the backend is back
-            w.c = ConvexClient(w.url)
+            w.reconnect()
 
 
 if __name__ == "__main__":

@@ -48,6 +48,30 @@ def test_remeasure_replaces(tmp_path, rng):
     assert Store(tmp_path, L, N, D).get(1, 1)["z"] == 9.0  # last write wins after reopening too
 
 
+# The dev and prod workers can run at once on the same store files, each with its own Store.
+
+def test_card_another_worker_wrote_is_readable(tmp_path, rng):
+    a, b = Store(tmp_path, L, N, D), Store(tmp_path, L, N, D)
+    a.put([card(1, 2, rng)])
+    assert b.get(1, 2)["texts"] == ["text 1:2"]
+
+
+def test_interleaved_writes_keep_cards_apart(tmp_path, rng):
+    a, b = Store(tmp_path, L, N, D), Store(tmp_path, L, N, D)
+    a.put([card(0, 1, rng)])
+    b.put([card(0, 2, rng)])  # b's file position is stale: a appended after b opened
+    a.put([card(0, 3, rng)])
+    for s in (a, b):
+        assert [s.get(0, n)["texts"] for n in (1, 2, 3)] == [["text 0:1"], ["text 0:2"], ["text 0:3"]]
+
+
+def test_card_another_worker_rewrote_is_not_stale(tmp_path, rng):
+    a, b = Store(tmp_path, L, N, D), Store(tmp_path, L, N, D)
+    a.put([card(2, 4, rng, z=1.0)])
+    b.put([card(2, 4, rng, z=9.0)])  # both measured it at once; b's embedding is now the shared one
+    assert a.get(2, 4)["z"] == 9.0
+
+
 def test_ladder_matches_brute_force(tmp_path, rng):
     s = Store(tmp_path, L, N, D)
     cards = [card(l, n, rng) for l in range(L) for n in range(N)]
