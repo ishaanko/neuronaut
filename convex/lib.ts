@@ -1,8 +1,15 @@
 import { ConvexError, v } from "convex/values";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { NEW_GUESTS_PER_MINUTE } from "./rules";
+import { NEW_GUESTS_PER_MINUTE, today } from "./rules";
 
 export * from "./rules";
+
+// Today's UTC date, for queries. A query must not read the clock: Convex doesn't rerun it when the time changes and
+// may serve its cached result, so one that calls today() keeps showing yesterday's puzzle after midnight. The clock
+// row changes at 00:00 UTC (daily.ts roll), which reruns every query that read it. Mutations can call today().
+export async function queryToday(ctx: QueryCtx) {
+  return (await ctx.db.query("clock").first())?.today ?? today();
+}
 
 // Guests play the daily without an account. A random token kept in their browser names a hidden player row (userId
 // "guest|<token>", flagged `guest`): it never shows on the leaderboard or a trainer page, and signing up turns it into

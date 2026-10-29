@@ -136,6 +136,9 @@ export default defineSchema({
   // One row: how many guest rows were made this minute (lib.ts guestPlayer, rules.ts NEW_GUESTS_PER_MINUTE).
   guestMints: defineTable({ minute: v.number(), count: v.number() }),
 
+  // One row: the UTC date that queries treat as today (lib.ts queryToday). daily.ts roll writes it at 00:00 UTC.
+  clock: defineTable({ today: v.string() }),
+
   // One row: when the worker last checked in (worker.ts heartbeat), so a guess that hangs can say the worker is down.
   heartbeats: defineTable({ at: v.number() }),
 
