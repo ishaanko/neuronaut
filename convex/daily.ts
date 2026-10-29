@@ -2,36 +2,19 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { enqueue, GUEST_PRIORITY } from "./jobs";
+import { checkDate, dailyPlayer, guestArg, guestPlayer, playerFor, profileOf, queryToday } from "./lib";
 import { placeOf } from "./map";
-import {
-  HINTS,
-  LIMITS,
-  addDays,
-  cosine,
-  dailyNumber,
-  dailyPlayer,
-  GPU,
-  guestArg,
-  guestPlayer,
-  heat,
-  ladderRank,
-  neuronKey,
-  playerFor,
-  queryToday,
-  SOLVE_COS,
-  today,
-  validNeuron,
-} from "./lib";
+import { HINTS, LIMITS, addDays, cosine, dailyNumber, GPU, heat, ladderRank, neuronKey, SOLVE_COS, today, validNeuron } from "./rules";
 
 const BUFFER_DAYS = 7; // puzzles generated ahead, so a night the GPU is off doesn't skip a day
 
-async function dailyFor(ctx: MutationCtx | Parameters<typeof playerFor>[0], date: string) {
+export async function dailyFor(ctx: QueryCtx, date: string) {
   return await ctx.db.query("dailies").withIndex("by_date", (q) => q.eq("date", date)).unique();
 }
 
 // When this player's clock started on a puzzle: their first open, or their first guess if that came earlier (they
 // guessed before the open was recorded). Null if they've done neither.
-async function startedAt(ctx: MutationCtx | Parameters<typeof playerFor>[0], playerId: Id<"players">, date: string, firstGuess?: number) {
+async function startedAt(ctx: QueryCtx, playerId: Id<"players">, date: string, firstGuess?: number) {
   const open = await ctx.db.query("opens").withIndex("by_player_date", (q) => q.eq("playerId", playerId).eq("date", date)).unique();
   const times = [open?._creationTime, firstGuess].filter((x) => x !== undefined);
   return times.length ? Math.min(...times) : null;
@@ -46,6 +29,7 @@ export function dailyPoints(guesses: number) {
 export const current = query({
   args: { date: v.optional(v.string()), guest: guestArg },
   handler: async (ctx, { date, guest }) => {
+    if (date !== undefined) checkDate(date);
     const now = await queryToday(ctx);
     const d = date ?? now;
     if (d > now) return null; // puzzles are generated days ahead; their clues stay hidden until their date
@@ -94,10 +78,17 @@ export const current = query({
         )
       ).sort((a, b) => (b.heat ?? -999) - (a.heat ?? -999)),
       startedAt: player ? await startedAt(ctx, player._id, d, first) : null,
+      // once finished: how it went, and the answer
       result: result
-        ? { solved: result.solved, guesses: result.guesses, heats: result.heats, practice: !!result.practice, seconds: result.seconds ?? null }
+        ? {
+            solved: result.solved,
+            guesses: result.guesses,
+            heats: result.heats,
+            practice: !!result.practice,
+            seconds: result.seconds ?? null,
+            answer: { layer: daily.layer, n: daily.n, place: await at(daily.layer, daily.n) },
+          }
         : null,
-      answer: finished ? { layer: daily.layer, n: daily.n, place: await at(daily.layer, daily.n) } : null,
     };
   },
 });
@@ -107,6 +98,7 @@ export const current = query({
 export const tally = query({
   args: { date: v.string() },
   handler: async (ctx, { date }) => {
+    checkDate(date);
     const t = await ctx.db.query("tallies").withIndex("by_date", (q) => q.eq("date", date)).unique();
     return t ? { players: t.players, solvers: t.solvers } : await countResults(ctx, date);
   },
@@ -189,8 +181,8 @@ async function settle(ctx: MutationCtx, playerId: Doc<"players">["_id"], daily: 
 async function reveal(ctx: MutationCtx, playerId: Doc<"players">["_id"], daily: Doc<"dailies">) {
   const seen = await ctx.db.query("scans").withIndex("by_player_key", (q) => q.eq("playerId", playerId).eq("key", daily.key)).first();
   if (!seen) await ctx.db.insert("scans", { playerId, key: daily.key, layer: daily.layer, n: daily.n, date: daily.date, source: "guess" });
-  if (!(await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", daily.key)).unique()))
-    await enqueue(ctx, "profile", `profile:${daily.key}`, { layer: daily.layer, n: daily.n }, 1);
+  if (!(await profileOf(ctx, daily.key)))
+    await enqueue(ctx, { kind: "profile", args: { layer: daily.layer, n: daily.n } }, `profile:${daily.key}`, 1);
 }
 
 // Starts this player's solve clock on a puzzle the first time they open it. A signed-out visitor with a guest token
@@ -200,6 +192,7 @@ export const open = mutation({
   args: { date: v.optional(v.string()), guest: guestArg },
   handler: async (ctx, args) => {
     const date = args.date ?? today();
+    checkDate(date);
     if (date > today() || !(await dailyFor(ctx, date))) return;
     const signedIn = !!(await ctx.auth.getUserIdentity());
     const player = signedIn || args.guest === undefined ? await playerFor(ctx) : await guestPlayer(ctx, args.guest);
@@ -216,8 +209,9 @@ export const guess = mutation({
   args: { layer: v.number(), n: v.number(), date: v.optional(v.string()), guest: guestArg },
   handler: async (ctx, { layer, n, guest, ...args }) => {
     validNeuron(layer, n);
-    const player = await dailyPlayer(ctx, guest);
     const date = args.date ?? today();
+    checkDate(date);
+    const player = await dailyPlayer(ctx, guest);
     if (date > today()) throw new ConvexError("That puzzle is not out yet");
     const practice = date < today();
     const daily = await dailyFor(ctx, date);
@@ -232,13 +226,13 @@ export const guess = mutation({
     const id = await ctx.db.insert("guesses", { playerId: player._id, date, key, layer, n, status: "pending", ...(practice ? { practice } : {}) });
     if (!(await ctx.db.query("scans").withIndex("by_player_key", (q) => q.eq("playerId", player._id).eq("key", key)).first()))
       await ctx.db.insert("scans", { playerId: player._id, key, layer, n, date, source: "guess" });
-    const prof = await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", key)).unique();
+    const prof = await profileOf(ctx, key);
     if (prof) return await resolve(ctx, (await ctx.db.get(id))!, prof.embedding, daily);
     if (player.guest) {
       const waiting = await ctx.db.query("guesses").withIndex("by_key_status", (q) => q.eq("key", key).eq("status", "pending")).take(GPU.waiters + 1);
       if (waiting.length > GPU.waiters) throw new ConvexError("The GPU is busy right now. Try again in a minute.");
     }
-    await enqueue(ctx, "profile", `profile:${key}`, { layer, n }, player.guest ? GUEST_PRIORITY : 0, player._id);
+    await enqueue(ctx, { kind: "profile", args: { layer, n } }, `profile:${key}`, player.guest ? GUEST_PRIORITY : 0, player._id);
   },
 });
 
@@ -319,7 +313,7 @@ export const ensure = internalMutation({
     const exclude = recent.map((d) => d.key);
     for (let i = 0; i < BUFFER_DAYS; i++) {
       const date = addDays(today(), i);
-      if (!(await dailyFor(ctx, date))) await enqueue(ctx, "daily", `daily:${date}`, { date, exclude }, 1);
+      if (!(await dailyFor(ctx, date))) await enqueue(ctx, { kind: "daily", args: { date, exclude } }, `daily:${date}`, 1);
     }
   },
 });

@@ -31,7 +31,7 @@ baselines for each layer and caches them. Hourly crons create dailies and bounti
 Once the sweep is done, lay out the map and load it:
 
 ```sh
-uv run --group analysis python places.py     # writes ../data/places.jsonl and ../src/data/zones.json
+uv run --group analysis python places.py     # writes ../data/places.jsonl and ../src/map/zones.json
 bunx convex import --table places --replace ../data/places.jsonl
 ```
 
@@ -49,7 +49,7 @@ and `WORKER_SECRET`. The E2E runs against it with
 
 | path | what |
 | --- | --- |
-| `src/` | React and Tailwind client |
+| `src/` | React and Tailwind client, a folder per mode (`daily/`, `dex/`, `bounties/`, `lab/`, `map/`) plus `home/`, `learn/` and `players/`. Neuron widgets every mode uses live in `neuron/`, generic ones in `ui/` |
 | `convex/` | players, scans, catches, dailies, bounties and the job queue. `rules.ts` holds the game numbers |
 | `worker/` | pulls jobs from Convex, runs the model with HF transformers, writes results back. It needs no open port |
 | `e2e/game.mjs` | plays every mode in a real browser |

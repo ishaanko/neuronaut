@@ -3,27 +3,27 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { action, internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
-import { bumpStats, enqueue, globalStats } from "./jobs";
-import { LIMITS, MODEL, POINTS, PREDICT_POINTS, type Rarity, guestArg, neuronKey, playerFor, requirePlayer, today, validNeuron } from "./lib";
+import { enqueue } from "./jobs";
+import { guestArg, playerFor, profileOf, requirePlayer } from "./lib";
 import { effectOf, placeOf } from "./map";
-import { effect } from "./schema";
-
-async function profileOf(ctx: QueryCtx, key: string) {
-  return await ctx.db.query("profiles").withIndex("by_key", (q) => q.eq("key", key)).unique();
-}
+import { LIMITS, MODEL, POINTS, PREDICT_POINTS, type Rarity, neuronKey, today, validNeuron } from "./rules";
+import { effect, rarity } from "./schema";
+import { countCatches, globalStats } from "./stats";
 
 async function catchOf(ctx: QueryCtx, key: string) {
   return await ctx.db.query("catches").withIndex("by_key", (q) => q.eq("key", key)).unique();
 }
 
 function publicProfile(p: Doc<"profiles">) {
-  return { texts: p.texts, words: p.words, z: p.z, nll: p.nll, distinct: p.distinct, rarity: p.rarity as Rarity };
+  return { texts: p.texts, words: p.words, z: p.z, nll: p.nll, distinct: p.distinct, rarity: p.rarity };
 }
 
 // Lens search: neurons whose steer or logit lens contains the words. Free, needs no GPU, and is the main way to hunt.
 export const search = query({
   args: { q: v.string(), layer: v.optional(v.number()) },
   handler: async (ctx, { q, layer }) => {
+    if (layer !== undefined && !(Number.isInteger(layer) && layer >= 0 && layer < MODEL.layers))
+      throw new ConvexError(`Layers go from 0 to ${MODEL.layers - 1}`);
     if (!q.trim()) return [];
     const rows = await ctx.db
       .query("neurons")
@@ -94,7 +94,7 @@ export const scan = mutation({
         predictedRight: (player.predictedRight ?? 0) + (right ? 1 : 0),
         points: player.points + (right ? PREDICT_POINTS : 0),
       });
-    if (!(await profileOf(ctx, key))) await enqueue(ctx, "profile", `profile:${key}`, { layer, n }, 0, player._id);
+    if (!(await profileOf(ctx, key))) await enqueue(ctx, { kind: "profile", args: { layer, n } }, `profile:${key}`, 0, player._id);
     return { layer, n, effect: truth, right: right ?? null };
   },
 });
@@ -114,7 +114,7 @@ export const seen = query({
           layer: s.layer,
           n: s.n,
           source: s.source,
-          rarity: (prof?.rarity ?? null) as Rarity | null,
+          rarity: prof?.rarity ?? null,
           words: prof?.words.slice(0, 4) ?? [],
           caughtBy: c ? (c.playerId === player._id ? "you" : "taken") : null,
         };
@@ -147,13 +147,12 @@ export const catchCommit = internalMutation({
     if (caughtToday.length >= LIMITS.catches) throw new ConvexError(`Out of catches for today (${LIMITS.catches})`);
     if (await catchOf(ctx, key)) throw new ConvexError("Someone already caught this one");
     const prof = (await profileOf(ctx, key))!;
-    const rarity = prof.rarity as Rarity;
-    const points = Math.round(POINTS[rarity] * (1 + uniqueness));
-    await ctx.db.insert("catches", { playerId: player._id, handle: player.handle, key, layer, n, name, rarity, points, uniqueness, date });
+    const points = Math.round(POINTS[prof.rarity] * (1 + uniqueness));
+    await ctx.db.insert("catches", { playerId: player._id, handle: player.handle, key, layer, n, name, rarity: prof.rarity, points, uniqueness, date });
     await ctx.db.patch(prof._id, { caught: true });
     await ctx.db.patch(player._id, { points: player.points + points, caught: player.caught + 1 });
-    await bumpStats(ctx, { caught: { layer, n } });
-    return { points, rarity, uniqueness };
+    await countCatches(ctx, [{ layer, n }], 1);
+    return { points, rarity: prof.rarity, uniqueness };
   },
 });
 
@@ -161,7 +160,8 @@ export const catchCommit = internalMutation({
 // is from every neuron caught before it (1 - the nearest cosine), so the hundredth "ocean" neuron is worth less.
 export const catchNeuron = action({
   args: { layer: v.number(), n: v.number(), name: v.string() },
-  handler: async (ctx, args): Promise<{ points: number; rarity: string; uniqueness: number }> => {
+  handler: async (ctx, args): Promise<{ points: number; rarity: Rarity; uniqueness: number }> => {
+    validNeuron(args.layer, args.n);
     const name = args.name.trim().replace(/\s+/g, " ");
     if (name.length < 2 || name.length > 24) throw new ConvexError("Names are 2-24 characters");
     const { embedding } = await ctx.runQuery(internal.neurons.catchCheck, { layer: args.layer, n: args.n });
@@ -173,7 +173,7 @@ export const catchNeuron = action({
 
 // The dex: every caught neuron, newest first, optionally one rarity.
 export const dex = query({
-  args: { rarity: v.optional(v.string()), paginationOpts: paginationOptsValidator },
+  args: { rarity: v.optional(rarity), paginationOpts: paginationOptsValidator },
   handler: async (ctx, { rarity, paginationOpts }) => {
     const q = rarity
       ? ctx.db.query("catches").withIndex("by_rarity", (i) => i.eq("rarity", rarity))
@@ -190,7 +190,7 @@ export const dex = query({
             layer: c.layer,
             n: c.n,
             name: c.name,
-            rarity: c.rarity as Rarity,
+            rarity: c.rarity,
             points: c.points,
             handle: handles.get(c.playerId)!,
             words: prof?.words.slice(0, 4) ?? [],
@@ -219,7 +219,7 @@ export const overview = query({
           layer: c.layer,
           n: c.n,
           name: c.name,
-          rarity: c.rarity as Rarity,
+          rarity: c.rarity,
           handle: c.handle ?? (await ctx.db.get(c.playerId))?.handle ?? "?",
           at: c._creationTime,
         })),

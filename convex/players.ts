@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { LIMITS, NEW_PLAYER, guestArg, guestFor, playerFor, queryToday, type Rarity } from "./lib";
+import { NEW_PLAYER, guestArg, guestFor, playerFor, queryToday } from "./lib";
+import { LIMITS } from "./rules";
 
 // A signed-in Clerk user picks a handle once; that makes them a player. With `guest`, the guest row they played on
 // becomes that player, keeping its guesses, results, points and streak.
@@ -87,7 +88,7 @@ export const profile = query({
       bountyWins: p.bountyWins,
       predicted: p.predicted ?? 0,
       predictedRight: p.predictedRight ?? 0,
-      catches: catches.map((c) => ({ layer: c.layer, n: c.n, name: c.name, rarity: c.rarity as Rarity, points: c.points, date: c.date })),
+      catches: catches.map((c) => ({ layer: c.layer, n: c.n, name: c.name, rarity: c.rarity, points: c.points, date: c.date })),
     };
   },
 });

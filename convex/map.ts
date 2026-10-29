@@ -1,7 +1,8 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
-import { type Effect, neuronKey, playerFor, requirePlayer } from "./lib";
+import { playerFor, requirePlayer } from "./lib";
+import { type Effect, neuronKey } from "./rules";
 
 // The behavior map (worker/places.py): strong neurons laid out by what pushing them does, so neighbours act alike.
 // A neuron's place is disclosed under the card's rule: once this player has visited it, or anyone has caught it.
@@ -53,6 +54,7 @@ export const caught = query({
 export const here = mutation({
   args: { cell: v.number() },
   handler: async (ctx, { cell }) => {
+    if (!Number.isInteger(cell) || cell < 0) throw new ConvexError("No such square on the map");
     const player = await requirePlayer(ctx);
     const from = Math.random();
     const after = await ctx.db.query("places").withIndex("by_cell_r", (q) => q.eq("cell", cell).gte("r", from)).take(32);

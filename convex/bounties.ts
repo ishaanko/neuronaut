@@ -2,15 +2,15 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { BOUNTY_DAYS, BOUNTY_STAGGER_HOURS, JUDGE_PROMPTS, POOL } from "./bountyPool";
+import { BOUNTY_STAGGER_HOURS, JUDGE_PROMPTS, POOL } from "./bountyPool";
 import { enqueue } from "./jobs";
-import { LIMITS, playerFor, requirePlayer, validNeuron } from "./lib";
+import { checkPush, playerFor, requirePlayer } from "./lib";
+import { BOUNTY_DAYS, LIMITS, neuronKey } from "./rules";
 import { push } from "./schema";
 
 const OPEN = 3; // bounties open at once
 export const PRIZES = [50, 25, 10]; // points for the top three when a bounty closes; a top-three finish that beat par adds PAR_BONUS
 export const PAR_BONUS = 10;
-export const DOSE = { min: 0.05, max: 1.0 };
 
 // A bounty's public fields. Whether it's open is left to the client's clock (rules.ts bountyState).
 function summary(b: Doc<"bounties">) {
@@ -114,25 +114,19 @@ export const get = query({
 
 export const submit = mutation({
   args: { slug: v.string(), pushes: v.array(push) },
-  handler: async (ctx, { slug, pushes }) => {
+  handler: async (ctx, { slug, pushes: asked }) => {
     const player = await requirePlayer(ctx);
     const b = await ctx.db.query("bounties").withIndex("by_slug", (q) => q.eq("slug", slug)).unique();
     const now = Date.now();
     if (!b || now < b.startsAt || now >= b.endsAt) throw new ConvexError("This bounty isn't open");
-    if (pushes.length < 1 || pushes.length > b.maxNeurons) throw new ConvexError(`Use 1-${b.maxNeurons} neurons`);
-    const keys = new Set<string>();
-    for (const p of pushes) {
-      validNeuron(p.layer, p.n);
-      if (!Number.isFinite(p.dose) || Math.abs(p.dose) < DOSE.min || Math.abs(p.dose) > DOSE.max)
-        throw new ConvexError(`Doses are ${DOSE.min} to ${DOSE.max} (or negative)`);
-      keys.add(`${p.layer}:${p.n}`);
-    }
-    if (keys.size !== pushes.length) throw new ConvexError("Each neuron once");
+    if (asked.length < 1 || asked.length > b.maxNeurons) throw new ConvexError(`Use 1-${b.maxNeurons} neurons`);
+    const pushes = asked.map(checkPush);
+    if (new Set(pushes.map((p) => neuronKey(p.layer, p.n))).size !== pushes.length) throw new ConvexError("Each neuron once");
     const mine = await ctx.db.query("entries").withIndex("by_player_bounty", (q) => q.eq("playerId", player._id).eq("bountyId", b._id)).collect();
     if (mine.length >= LIMITS.entries) throw new ConvexError(`Out of entries for this bounty (${LIMITS.entries})`);
-    const pushesR = pushes.map((p) => ({ ...p, dose: Math.round(p.dose * 100) / 100 }));
-    const entryId = await ctx.db.insert("entries", { bountyId: b._id, playerId: player._id, pushes: pushesR, status: "pending" });
-    await enqueue(ctx, "judge", `judge:${entryId}`, { entryId, slug, pushes: pushesR, prompts: b.prompts, anchors: b.anchors, ...(b.question ? { question: b.question } : {}) }, 0, player._id);
+    const entryId = await ctx.db.insert("entries", { bountyId: b._id, playerId: player._id, pushes, status: "pending" });
+    const args = { entryId, slug, pushes, prompts: b.prompts, anchors: b.anchors, ...(b.question ? { question: b.question } : {}) };
+    await enqueue(ctx, { kind: "judge", args }, `judge:${entryId}`, 0, player._id);
   },
 });
 
@@ -172,7 +166,8 @@ export const ensure = internalMutation({
       ranked: true,
     });
     await ctx.scheduler.runAt(endsAt, internal.bounties.settle, {});
-    await enqueue(ctx, "par", `par:${slug}`, { slug, prompts: JUDGE_PROMPTS, anchors: next.anchors, question: next.question, maxNeurons: next.maxNeurons, brief: next.brief }, 1);
+    const args = { slug, prompts: JUDGE_PROMPTS, anchors: next.anchors, question: next.question, maxNeurons: next.maxNeurons, brief: next.brief };
+    await enqueue(ctx, { kind: "par", args }, `par:${slug}`, 1);
   },
 });
 

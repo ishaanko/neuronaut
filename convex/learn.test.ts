@@ -132,7 +132,7 @@ test("a lab experiment queues one GPU job for its player, and only the worker ca
   const result = { texts: ["both"], additivity: 0.93, gain: 0.8, towardA: 0.7, towardB: 0.6 };
   await expect(bob.mutation(api.worker.finishCombo, { secret: "wrong", id: job._id, experimentId: job.args.experimentId, ...result })).rejects.toThrow("bad worker secret");
   await t.mutation(api.worker.finishCombo, { secret: SECRET, id: job._id, experimentId: job.args.experimentId, ...result });
-  expect(await alice.query(api.lab.mine, {})).toMatchObject([{ a, b, status: "done", additivity: 0.93 }]);
+  expect(await alice.query(api.lab.mine, {})).toMatchObject([{ a, b, status: "done", result: { additivity: 0.93 } }]);
   expect(await bob.query(api.lab.mine, {})).toEqual([]);
 });
 
@@ -147,7 +147,7 @@ test("the lab refuses one neuron twice, a non-finite or out-of-range dose, and m
     await alice.mutation(api.lab.run, { a: p(100 + i), b: p(200 + i) });
     // the worker finishes each one, so the per-player GPU cap isn't what refuses the last
     for (const j of await t.run((ctx) => ctx.db.query("jobs").filter((q) => q.eq(q.field("status"), "pending")).collect()))
-      await t.mutation(api.worker.finishCombo, { secret: SECRET, id: j._id, experimentId: j.args.experimentId, texts: [], additivity: 1, gain: 1, towardA: 1, towardB: 1 });
+      if (j.kind === "combo") await t.mutation(api.worker.finishCombo, { secret: SECRET, id: j._id, experimentId: j.args.experimentId, texts: [], additivity: 1, gain: 1, towardA: 1, towardB: 1 });
   }
   await expect(alice.mutation(api.lab.run, { a: p(1), b: p(2) })).rejects.toThrow("experiments a day");
 });

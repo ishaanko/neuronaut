@@ -20,6 +20,7 @@ import type * as map from "../map.js";
 import type * as neurons from "../neurons.js";
 import type * as players from "../players.js";
 import type * as rules from "../rules.js";
+import type * as stats from "../stats.js";
 import type * as worker from "../worker.js";
 
 import type {
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   neurons: typeof neurons;
   players: typeof players;
   rules: typeof rules;
+  stats: typeof stats;
   worker: typeof worker;
 }>;
 

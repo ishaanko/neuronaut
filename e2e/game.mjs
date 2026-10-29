@@ -27,7 +27,7 @@ const out = join("e2e", "artifacts", new Date().toISOString().replace(/[:.]/g, "
 mkdirSync(out, { recursive: true });
 const report = { url, deployment: deployment ?? "local", steps: [] };
 const handle = `e2e_${Math.random().toString(36).slice(2, 8)}`;
-const guest = `${handle}_guest_token`; // the browser's guest token (src/lib/guest.ts), named so cleanup can find it
+const guest = `${handle}_guest_token`; // the browser's guest token (src/players/guest.ts), named so cleanup can find it
 const guest2 = `${handle}_guest2_token`; // a second guest who guesses while a bounty is judged
 
 const keys = Object.fromEntries(

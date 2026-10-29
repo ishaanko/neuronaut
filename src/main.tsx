@@ -4,36 +4,29 @@ import { ConvexReactClient } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { StrictMode, Suspense, lazy, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import "./index.css";
 import { api } from "../convex/_generated/api";
-import { Nav } from "./components/Nav";
-import { NotesProvider } from "./lib/notes";
-import { guestToken } from "./lib/guest";
-import { SessionProvider } from "./lib/session";
-import { useTheme } from "./lib/theme";
-import { Daily } from "./pages/Daily";
-import { Home } from "./pages/Home";
+import { Footer, Nav } from "./app/Nav";
+import { useTheme } from "./app/theme";
+import { Daily } from "./daily/Daily";
+import { Home } from "./home/Home";
+import { NotesProvider } from "./learn/fieldNotes";
+import { guestToken } from "./players/guest";
+import { SessionProvider } from "./players/session";
 
 // Home and the daily (the main game) ship in the first bundle; the other pages load on first visit.
-const Dex = lazy(() => import("./pages/Dex").then((m) => ({ default: m.Dex })));
-const Neuron = lazy(() => import("./pages/Neuron").then((m) => ({ default: m.Neuron })));
-const Bounties = lazy(() => import("./pages/Bounties").then((m) => ({ default: m.Bounties })));
-const Bounty = lazy(() => import("./pages/Bounties").then((m) => ({ default: m.Bounty })));
-const Trainers = lazy(() => import("./pages/Trainers").then((m) => ({ default: m.Trainers })));
-const Trainer = lazy(() => import("./pages/Trainers").then((m) => ({ default: m.Trainer })));
-const How = lazy(() => import("./pages/How").then((m) => ({ default: m.How })));
-const MapPage = lazy(() => import("./pages/Map").then((m) => ({ default: m.MapPage })));
-const Notes = lazy(() => import("./pages/Notes").then((m) => ({ default: m.Notes })));
-const Lab = lazy(() => import("./pages/Lab").then((m) => ({ default: m.Lab })));
-const About = lazy(() => import("./pages/About").then((m) => ({ default: m.About })));
-
-// The pages that aren't game modes, kept out of the nav.
-const FOOTER_LINKS = [
-  ["/trainers", "Leaderboard"],
-  ["/notes", "Notes"],
-  ["/how", "Rules"],
-] as const;
+const Dex = lazy(() => import("./dex/Dex").then((m) => ({ default: m.Dex })));
+const Neuron = lazy(() => import("./dex/Neuron").then((m) => ({ default: m.Neuron })));
+const Bounties = lazy(() => import("./bounties/Bounties").then((m) => ({ default: m.Bounties })));
+const Bounty = lazy(() => import("./bounties/Bounties").then((m) => ({ default: m.Bounty })));
+const Trainers = lazy(() => import("./players/Trainers").then((m) => ({ default: m.Trainers })));
+const Trainer = lazy(() => import("./players/Trainers").then((m) => ({ default: m.Trainer })));
+const How = lazy(() => import("./learn/How").then((m) => ({ default: m.How })));
+const MapPage = lazy(() => import("./map/Map").then((m) => ({ default: m.MapPage })));
+const Notes = lazy(() => import("./learn/Notes").then((m) => ({ default: m.Notes })));
+const Lab = lazy(() => import("./lab/Lab").then((m) => ({ default: m.Lab })));
+const About = lazy(() => import("./learn/About").then((m) => ({ default: m.About })));
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
@@ -50,13 +43,12 @@ for (const query of PREWARM[location.pathname as keyof typeof PREWARM] ?? [])
 if (location.pathname === "/" || location.pathname === "/daily")
   convex.prewarmQuery({ query: api.daily.current, args: { guest: guestToken() }, extendSubscriptionFor: 10_000 });
 
-// Clerk's sign-in modal in the site's colors. It can't read the CSS variables, so it gets each theme's values.
-const CLERK_COLORS = {
-  paper: { card: "#f4f0e6", bg: "#ece7dc", ink: "#1b1814" },
-  dark: { card: "#0f0e0c", bg: "#000", ink: "#f2ede3" },
-};
+// Clerk's sign-in modal in the site's colors. It can't use CSS variables, so it gets the current theme's values, read
+// again when the theme changes.
 function Clerk({ children }: { children: ReactNode }) {
-  const c = CLERK_COLORS[useTheme()];
+  useTheme();
+  const css = getComputedStyle(document.documentElement);
+  const c = { card: css.getPropertyValue("--color-card"), bg: css.getPropertyValue("--color-bg"), ink: css.getPropertyValue("--color-fg") };
   const appearance = {
     variables: {
       colorBackground: c.card,
@@ -105,22 +97,7 @@ createRoot(document.getElementById("root")!).render(
                   </Routes>
                 </Suspense>
               </main>
-              <footer className="mx-auto flex max-w-[1120px] flex-wrap items-baseline gap-x-6 gap-y-2 border-t border-line px-4 py-6 text-sm text-dim sm:px-6">
-                <nav className="flex flex-wrap gap-x-5 gap-y-2 font-mono text-xs uppercase tracking-[0.12em]">
-                  {FOOTER_LINKS.map(([to, label]) => (
-                    <Link key={to} to={to} className="hover:text-fg">
-                      {label}
-                    </Link>
-                  ))}
-                </nav>
-                <span className="sm:ml-auto">
-                  Built on{" "}
-                  <a href="https://github.com/lyramakesmusic/neuron-explorer" className="text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">
-                    neuron-explorer
-                  </a>{" "}
-                  by lyramakesmusic
-                </span>
-              </footer>
+              <Footer />
               <Analytics />
             </NotesProvider>
           </SessionProvider>

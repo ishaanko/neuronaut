@@ -1,6 +1,6 @@
 // Pure production coordinator used by SessionProvider; no browser, Clerk client or network.
 import { expect, test } from "vitest";
-import { createAccountGate, type Outcome } from "../src/lib/accountGate";
+import { createAccountGate, type Outcome } from "../src/players/accountGate";
 
 const setup = () => {
   const gate = createAccountGate();
