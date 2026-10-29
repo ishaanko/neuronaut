@@ -4,6 +4,7 @@ import { v } from "convex/values";
 export const push = v.object({ layer: v.number(), n: v.number(), dose: v.number() });
 export const ladder = v.object({ ranks: v.array(v.number()), cos: v.array(v.float64()) }); // see rules.ts ladderRank
 export const jobKind = v.union(v.literal("profile"), v.literal("judge"), v.literal("daily"), v.literal("par"), v.literal("combo"));
+export const difficulty = v.union(v.literal("easy"), v.literal("medium"), v.literal("hard")); // by weekday, worker/main.py
 export const effect = v.union(v.literal("quiet"), v.literal("shift"), v.literal("word"), v.literal("breaks")); // rules.ts EFFECTS
 
 export default defineSchema({
@@ -11,7 +12,7 @@ export default defineSchema({
   // Also the profile prompts and the unsteered model's replies to them, which every card compares against.
   stats: defineTable({
     name: v.string(),
-    profiled: v.number(),
+    profiled: v.number(), // no longer counted (worker.ts putProfiles); swept replaced it
     swept: v.optional(v.number()), // neurons the worker's sweep has measured (they live in its local store, not here)
     caught: v.number(),
     coverage: v.array(v.number()),
@@ -105,6 +106,7 @@ export default defineSchema({
     layer: v.number(),
     n: v.number(),
     name: v.string(),
+    handle: v.optional(v.string()), // the catcher's, copied so lists don't read (and rerun on) their player row
     rarity: v.string(),
     points: v.number(),
     uniqueness: v.number(),
@@ -146,7 +148,16 @@ export default defineSchema({
     ladder, // how close every measured neuron is to the answer, sampled by rank: guess ranks and heat come from it
     band: v.array(v.number()), // [lo, hi] layers, a hint
     hint: v.string(), // the answer's top steer token, a hint
-    difficulty: v.optional(v.union(v.literal("easy"), v.literal("medium"), v.literal("hard"))), // by weekday, worker/main.py
+    difficulty: v.optional(difficulty),
+  }).index("by_date", ["date"]),
+
+  // How many played each puzzle live and how many solved it, counted as results come in (daily.ts bumpTally), so the
+  // daily page and the archive never read every result. A puzzle doc is ~25 KB (its ladder), so the archive lists these.
+  tallies: defineTable({
+    date: v.string(),
+    difficulty: v.optional(difficulty),
+    players: v.number(),
+    solvers: v.number(),
   }).index("by_date", ["date"]),
 
   guesses: defineTable({

@@ -52,7 +52,7 @@ export async function globalStats(ctx: QueryCtx) {
 
 export async function bumpStats(
   ctx: MutationCtx,
-  change: { profiled?: number; caught?: { layer: number; n: number }; baseline?: { prompts: string[]; texts: string[] } },
+  change: { caught?: { layer: number; n: number }; baseline?: { prompts: string[]; texts: string[] } },
 ) {
   let s = await globalStats(ctx);
   if (!s) {
@@ -66,7 +66,6 @@ export async function bumpStats(
   }
   const patch: Partial<Doc<"stats">> = {};
   if (change.baseline) Object.assign(patch, { prompts: change.baseline.prompts, baseline: change.baseline.texts });
-  if (change.profiled) patch.profiled = s.profiled + change.profiled;
   if (change.caught) {
     const { layer, n } = change.caught;
     const coverage = [...s.coverage];

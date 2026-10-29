@@ -85,8 +85,10 @@ test("one player's daily solve doesn't reveal the answer, hints or guesses to an
   expect([a.result?.solved, a.answer?.layer, a.answer?.n]).toEqual([true, 1, 99]);
   expect(a.band).toEqual([0, 7]);
   expect(a.hint).toBe("private hint");
-  for (const viewer of [bob, t])
-    expect(await viewer.query(api.daily.current, {})).toMatchObject({ result: null, answer: null, band: null, hint: null, solvers: 1 });
+  for (const viewer of [bob, t]) {
+    expect(await viewer.query(api.daily.current, {})).toMatchObject({ result: null, answer: null, band: null, hint: null });
+    expect(await viewer.query(api.daily.tally, { date: DATE })).toEqual({ players: 1, solvers: 1 });
+  }
   expect((await bob.query(api.daily.current, {}))!.guesses.map((g) => g.n)).toEqual([2]);
   expect((await t.query(api.daily.current, {}))!.guesses).toEqual([]);
 });

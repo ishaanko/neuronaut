@@ -87,7 +87,7 @@ test("removing a test player takes them off every public list and frees what the
   expect((await t.query(api.neurons.dex, { paginationOpts: { numItems: 10, cursor: null } })).page).toEqual([]);
   expect(await t.query(api.neurons.overview, {})).toMatchObject({ caught: 0, recent: [] });
   expect((await t.query(api.neurons.overview, {})).coverage.every((c) => c === 0)).toBe(true);
-  expect(await t.query(api.daily.current, {})).toMatchObject({ players: 1, solvers: 1 });
+  expect(await t.query(api.daily.tally, { date: "2026-10-27" })).toEqual({ players: 1, solvers: 1 }); // the bot's solve counted out
   // the neuron is catchable again
   await keep.mutation(api.neurons.scan, { layer: 2, n: 2 });
   await expect(keep.action(api.neurons.catchNeuron, { layer: 2, n: 2, name: "mine" })).resolves.toMatchObject({ rarity: expect.any(String) });
@@ -184,6 +184,23 @@ describe("daily settlement", () => {
     const { result } = (await alice.query(api.daily.current, {}))!;
     expect(result).toMatchObject({ solved: true, guesses: 2, heats: [expect.any(Number), 100] });
     expect((await alice.query(api.players.me, {}))!.points).toBe(dailyPoints(2));
+  });
+
+  test("players and solvers count each live result once, even on a puzzle from before tallies existed", async () => {
+    const { t, player, putProfiles } = await setup();
+    await withDaily(t, "2026-10-26");
+    await withDaily(t);
+    await putProfiles([profile(5, 5, axis(0))]);
+    const early = (await (await player("early")).query(api.players.me, {}))!;
+    // written before tallies: today has no tally row yet, so the first new result has to count this one too
+    await t.run((ctx) => ctx.db.insert("results", { playerId: early._id, date: "2026-10-27", solved: false, guesses: 15, heats: [] }));
+    const alice = await player("alice");
+    await alice.mutation(api.daily.guess, { layer: 5, n: 5 });
+    await alice.mutation(api.daily.guess, { layer: 5, n: 5, date: "2026-10-26" }); // practice doesn't count
+    expect(await t.query(api.daily.tally, { date: "2026-10-27" })).toEqual({ players: 2, solvers: 1 });
+    await t.mutation(internal.daily.ensure, {}); // gives the old puzzle its tally row, so the archive lists it
+    const past = await alice.query(api.daily.archive, {});
+    expect(past).toMatchObject([{ date: "2026-10-26", players: 0, solvers: 0, mine: { solved: true, practice: true } }]);
   });
 
   test("a failed profile job gives the guess back instead of stalling the puzzle", async () => {

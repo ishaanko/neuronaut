@@ -99,6 +99,8 @@ export const putProfiles = mutation({
   args: { secret: v.string(), jobIds: v.array(v.id("jobs")), profiles: v.array(profile) },
   handler: async (ctx, { secret, jobIds, profiles }) => {
     checkWorker(secret);
+    // No count in stats: that row is on every page, and bumping it on each guess's profile reran them all for every
+    // visitor. The dex header counts the sweep instead (putSwept).
     let added = 0;
     for (const p of profiles) {
       const key = neuronKey(p.layer, p.n);
@@ -107,7 +109,6 @@ export const putProfiles = mutation({
       await resolvePending(ctx, key, p.embedding);
       added++;
     }
-    if (added) await bumpStats(ctx, { profiled: added });
     for (const id of jobIds) await ctx.db.patch(id, { status: "done" });
     return added;
   },

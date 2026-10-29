@@ -47,6 +47,7 @@ function ResultCard({ d, onClose }: { d: Daily; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const now = useNow(true);
   const { me, signedIn, signUp } = useSession();
+  const tally = useQuery(api.daily.tally, { date: d.date });
   const r = d.result!;
   return (
     <div>
@@ -65,7 +66,7 @@ function ResultCard({ d, onClose }: { d: Daily; onClose: () => void }) {
       <dl className="mt-4 grid grid-cols-3 gap-4 border-y border-fg py-4">
         <div>
           <dt className="font-mono text-[10px] uppercase tracking-wider text-dim">{d.practice ? "Solved that day" : "Solved today"}</dt>
-          <dd className="font-mono text-2xl tabular-nums">{d.solvers}</dd>
+          <dd className="font-mono text-2xl tabular-nums">{tally?.solvers ?? "-"}</dd>
         </div>
         <div>
           <dt className="font-mono text-[10px] uppercase tracking-wider text-dim">Your streak</dt>
@@ -200,6 +201,7 @@ export function Daily() {
   const { me, signedIn, settled, guest, requirePlay, signUp } = useSession();
   const { date } = useParams();
   const d = useQuery(api.daily.current, { ...(date ? { date } : {}), guest });
+  const tally = useQuery(api.daily.tally, d ? { date: d.date } : "skip");
   const guess = useMutation(api.daily.guess);
   const openPuzzle = useMutation(api.daily.open);
   const [pick, setPick] = useState<string | null>(null);
@@ -292,7 +294,7 @@ export function Daily() {
         no={String(d.number).padStart(3, "0")}
         path={[date ? "practice" : "daily", d.date, d.difficulty, d.practice && "no points"].filter(Boolean).join(" / ")}
         cells={[
-          { label: "Solved", value: `${d.solvers} of ${d.players}` },
+          { label: "Solved", value: tally ? `${tally.solvers} of ${tally.players}` : "-" },
           { label: "Guesses", value: `${used} of ${d.limit}` },
           {
             label: "Your time",
